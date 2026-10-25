@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FBFBF9">
+  <meta name="description" content="A privacy-first administrative intake and service matching navigator for Kahilom Psychological Services.">
+  <title>ServiceRoute | Kahilom Psychological Services</title>
+  <!-- Social Media Link Previews (Open Graph) -->
+  <meta property="og:title" content="Kahilom ServiceRoute — Find the Right Service">
+  <meta property="og:description" content="A 60-second, confidential navigator to help you find the appropriate counseling or assessment service at Kahilom.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://kahilom-serviceroute.netlify.app/og-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233F5E4D'/%3E%3Cpath d='M16 43c9 1.5 10-19 19-19 6 0 7 9 13 9' fill='none' stroke='%23FAF8F5' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='43' r='4' fill='%23E7C79B'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#app-main">Skip to intake</a>
+
+  <div class="app-frame">
+    <aside class="emergency-banner" aria-label="Emergency notice">
+      <span class="emergency-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" focusable="false">
+          <path d="M12 8.25v4.5M12 16.5h.01M10.3 4.4 2.9 17.2A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.8L13.7 4.4a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <p>
+        <strong>Emergency Notice:</strong> Kahilom is a scheduled appointment clinic, not an emergency facility. If you are experiencing an acute crisis, call the 24/7 NCMH Crisis Hotline at <a href="tel:1553">1553</a> (Toll-Free) or <a href="tel:+639178998727">0917&#8209;899&#8209;8727</a>.
+      </p>
+    </aside>
+
+    <header class="app-header">
+      <div class="header-line">
+        Kahilom
+        <span style="color:#6B726E; font-weight:400;">&middot; ServiceRoute</span>
+      </div>
+    </header>
+
+    <main id="app-main" class="app-main">
+      <section class="progress-card" aria-label="Intake progress">
+        <div class="progress-track" role="progressbar" aria-label="Intake progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25" aria-valuetext="Step 1 of 4, 25 percent complete">
+          <span id="progress-fill" class="progress-fill"></span>
+        </div>
+      </section>
+
+      <div id="step-root" class="step-root"></div>
+
+      <noscript>
+        <div class="noscript-card">
+          <h2>JavaScript is needed for this intake</h2>
+          <p>Please enable JavaScript, or contact Kahilom Psychological Services directly to book an appointment.</p>
+        </div>
+      </noscript>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M5 19c0-6 3.8-11 11.5-12.5C16.8 13.3 13.2 17.4 5 19Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M5 19c2.5-4.3 5.8-7.4 10.2-9.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span>Kahilom Psychological Services</span>
+      </div>
+      <p>Administrative intake only. This tool does not provide a diagnosis or emergency care.</p>
+      <p class="footer-privacy">Privacy-first &middot; RA 10173 principles</p>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="crisis-modal" class="crisis-modal" aria-labelledby="crisis-title" aria-describedby="crisis-description">
+    <div class="modal-top">
+      <span class="modal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" focusable="false">
+          <path d="M12 20.25s-7.5-4.4-7.5-10A4.5 4.5 0 0 1 12 7.2a4.5 4.5 0 0 1 7.5 3.05c0 5.6-7.5 10-7.5 10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M8.25 11.5h2.1l1.1-2.2 1.35 4.1 1.05-1.9h1.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <button type="button" class="modal-close" data-close-modal aria-label="Close and change schedule">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="m6.5 6.5 11 11m0-11-11 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <p class="modal-kicker">Safety check</p>
+    <h2 id="crisis-title">Need Immediate or Emergency Support?</h2>
+    <p id="crisis-description">Because sessions are booked in advance, we cannot guarantee same-day emergency slots. If you are in distress, please contact national hotlines immediately.</p>
+
+    <div class="hotline-card">
+      <span class="hotline-label">24/7 NCMH Crisis Hotline</span>
+      <strong>1553 <span>&middot; Toll-Free</span></strong>
+      <a href="tel:+639178998727">0917&#8209;899&#8209;8727</a>
+    </div>
+
+    <div class="modal-actions">
+      <a class="button button-primary" href="tel:1553">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M7.1 3.8 9.6 7a1.5 1.5 0 0 1-.1 2l-1.4 1.3a14.3 14.3 0 0 0 5.6 5.6l1.3-1.4a1.5 1.5 0 0 1 2-.1l3.2 2.5a1.5 1.5 0 0 1 .2 2.2l-1.3 1.4c-1 1-2.4 1.4-3.7 1.1C9.8 20 6 16.2 4.4 9.6c-.3-1.3.1-2.7 1.1-3.7L6.9 4a1.5 1.5 0 0 1 2.1 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Call&nbsp;NCMH&nbsp;Hotline&nbsp;(1553)
+      </a>
+      <button type="button" class="button button-secondary" data-crisis-proceed>
+        Proceed to Clinic Booking
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+    <p class="modal-footnote">If you are in immediate danger, please call your local emergency services.</p>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
