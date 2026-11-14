@@ -1,134 +1,127 @@
 # ServiceRoute
 
-Administrative intake and service matching for Kahilom Psychological Services.
-The original static HTML/CSS/JavaScript architecture is preserved: the browser
-sends inquiries **directly to Google Apps Script**. No Netlify, application
-server, environment variables, API proxy, or runtime npm dependencies are needed.
+Lightweight administrative intake for Kahilom Psychological Services. Static
+HTML/CSS/JavaScript posts directly to Google Apps Script. No application server,
+framework, paid service, or runtime dependency is required.
 
-## Run
-
-Open `index.html`, or serve the directory:
+## Run and test
 
 ```sh
 python3 -m http.server 8000
 ```
 
-Visit `http://localhost:8000`. You can use your existing static website host.
-Only publish `index.html`, `style.css`, `app.js`, and `privacy.html`, not repository
-snapshots or receiver source. An optional `npm run build` copies those four files
-to `public/`; it is not required to run the app.
-
-## Google Apps Script connection
-
-The deployment URL supplied by the owner is already configured as `SCRIPT_URL`
-at the top of `app.js`:
-
-```text
-https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3WHiyhpQW_8LxbEAsMnNwgUQIXw6le92YVlCXis6dZMGUjY8tjg/exec
-```
-
-The payload includes the original fields and a compatible `timestamp`, so an
-original receiver can still accept it. The safeguards below require deploying
-the updated `Code.gs`; editing this repository does not update Google's copy.
-
-### Update the receiver
-
-1. In your target Google Sheet, open **Extensions → Apps Script**.
-2. Replace the receiver code with `Code.gs`.
-3. Choose **Deploy → Manage deployments → Edit → New version → Deploy** to update
-   the existing deployment and keep the same URL.
-4. Execute as **Me** and allow access to **Anyone**.
-5. The updated receiver automatically creates a worksheet named
-   **ServiceRoute Inquiries**. Existing sheets and records are left untouched.
-6. Submit a synthetic inquiry and check that it appears in that worksheet.
-
-No shared secret or Script Properties are required for a spreadsheet-bound
-project. If using a standalone script instead, set `SPREADSHEET_ID` in Script
-Properties. Optionally set `SHEET_NAME` to another destination name. The selected
-sheet must be empty or match the updated schema; incompatible headers are
-rejected rather than overwritten.
-
-If you deployed the earlier secret-protected receiver from this repository,
-**redeploy this updated receiver**: it no longer requires `RECEIVER_SECRET`.
-Do not place secrets in frontend code.
-
-## What the delivery messages mean
-
-The browser uses `fetch` with `mode: "no-cors"` and a simple `text/plain` JSON
-body, as supported by the original Apps Script integration. Google's response
-is opaque: the browser cannot read the HTTP status or the receiver's JSON.
-
-- **Inquiry Sent**: the browser completed the request. This is **not** proof that
-  Google Sheets stored it, nor an appointment confirmation.
-- **We Couldn't Complete Sending**: the request failed or timed out. It might
-  still have reached Google. Users can copy details or retry the original payload.
-- Retry keeps the same inquiry ID. The updated receiver deduplicates it; an older
-  receiver may create duplicate rows.
-- Deployment access errors, validation failures, schema errors, throttling and
-  Google quota errors may be invisible to the browser. Verify the worksheet
-  during setup and follow up with the clinic if no response arrives.
-
-There is no fake “received” confirmation and no promise of follow-up without
-clinic acknowledgment. No live inquiry is sent by the automated tests.
-
-## Improvements retained
-
-- Four-step deterministic service matching with persistent emergency resources
-  and an urgent-scheduling safety reminder.
-- Answer review/editing, preference summary and online-testing compatibility notices.
-- Required contact and explicit consent; bounded optional name/scheduling fields.
-- Native keyboard-accessible referral radios, focus management, visible progress,
-  mobile action-dock spacing and reduced-motion support.
-- Complete reset of names, contacts, scheduling notes and consent.
-- Inquiry IDs, same-payload retry and transparent delivery states.
-- Updated receiver: validation, server-calculated recommendation, server receipt
-  and consent recording timestamps, literal-text spreadsheet writes, named-sheet
-  targeting, locking and durable duplicate detection.
-- Best-effort throttling: 60 new inquiries/hour globally and one/contact/minute.
-  Same-ID retries return the previous receipt without adding another row.
-
-The Apps Script URL is public by design. Validation, throttling and a honeypot
-provide basic abuse resistance, not authenticated access or guaranteed bot
-protection. Google's cache can evict rate-limit entries, and Google quotas apply.
-Monitor the sheet; do not log contact payloads unnecessarily.
-
-## Privacy before launch
-
-Review `privacy.html` and publish the clinic's verified privacy contact and
-approved retention period. Restrict Sheet/Apps Script access to authorized staff,
-review Google and website-host processing terms, and establish an actual
-deletion process for expired inquiries and exports. No automatic deletion job
-is installed. Confirm minor/guardian handling with an appropriate privacy adviser.
-
-Consent records and references to RA 10173 alone do not establish legal
-compliance. State stays in page memory; this app does not store contact details
-in local storage, cookies or analytics. The updated receiver records more
-consent metadata than the original receiver.
-
-## Tests
-
-Node.js 22+ is needed only for development tests and the optional build:
+Development checks (Node.js 22+):
 
 ```sh
-npm test
 npm run check
+npm test
 npm run build
 ```
 
-Tests mock browser/Google services. They cover all 54 routing combinations,
-navigation, validation, consent, direct Apps Script request settings, opaque
-responses, retry, reset, spreadsheet validation, deduplication and throttling.
+The optional build copies the four browser assets to `public/`. It does not
+deploy Apps Script. Publish only `index.html`, `style.css`, `app.js`, and
+`privacy.html` through your existing host.
 
-Before releasing, check keyboard/screen-reader behavior and narrow mobile
-layouts, ASAP dialog closing/reopening, answer edits, form reset, offline
-behavior, and a synthetic submission in the **actual Google Sheet**.
+## Existing ledger compatibility
 
-## Matching rules
+`Code.gs` exclusively opens spreadsheet
+`19zT6nogw6NIJq-lYtMEJgJz1J4MPMUzlbFg3RPmRkvw`, worksheet **Intake**.
+It never creates a replacement worksheet or rewrites historical records.
 
-1. Clearance → Psychological Evaluation for Official Clearance.
-2. Assessment → Full Psychological Assessment & Testing Battery.
-3. Couple/family + counseling → Couples / Family Counseling.
-4. Otherwise → Individual Counseling / Talk Therapy.
+| Columns | Existing ledger mapping |
+| --- | --- |
+| A–J | `timestamp, preferred_name, client_type, goal, format, schedule, schedule_notes, recommended_service, contact, referral` |
+| K–L | `Status, Handled By / Notes` |
+| M | `Submission ID` (new submissions use UUID v4) |
+| N–R | `consent, privacy_version, consent_recorded_at, Request fingerprint, Receipt attempts` |
 
-Format and timing are preferences, not guaranteed availability. This tool
-provides administrative routing, not clinical triage or diagnosis.
+Only missing metadata **headers** are added, under a script lock, after validating
+the whole schema and ensuring unlabelled columns contain no data. Existing
+consent cells remain blank: historical consent is never fabricated. New rows
+use a server-generated UTC timestamp in A and P, `Pending` in K, and blank L.
+
+Missing/renamed worksheets, incompatible headers, unexpected additional columns,
+unlabelled metadata, stale destination properties, or duplicate existing UUIDs
+fail closed. No automatic migration or historical backfill occurs.
+
+## Confirmation protocol
+
+1. The browser creates a stable `inquiry_id` and an immutable retry payload.
+2. Each POST attempt has a fresh `attempt_id`. Both are random UUID v4 values.
+3. The public receiver validates the request, locks the ledger, checks column M
+   for duplicates, appends at most one row, flushes and reads it back. Accepted
+   attempt IDs are recorded in R, binding verification to an actual accepted POST.
+4. Because a `no-cors` POST response is opaque, it is **never** treated as proof.
+5. The browser makes up to three read-only JSONP receipt checks, with a strict,
+   randomly generated callback. Apps Script's JavaScript ContentService response
+   works cross-origin and through Google's content redirect, without a proxy.
+
+This follows Google's documented [read-only JSONP ContentService pattern](https://developers.google.com/apps-script/guides/content#serve_jsonp_in_web_pages).
+
+Receipt requests contain only submission/attempt UUIDs, callback name and cache
+buster. Responses contain only protocol, submission ID, status, and server
+timestamp for confirmed records. No names, contacts, service choices, request
+fingerprints, credentials, or secrets are returned. JSONP is restricted to this
+read-only, non-contact-data endpoint; it is never used to submit an inquiry.
+Google's endpoint is trusted to serve script, as required by JSONP.
+
+- **Confirmed:** the server found a complete matching ledger record and verified
+  its internal fingerprint. This confirms storage, **not an appointment**.
+- **Failed:** the server explicitly rejected this attempt, for example validation,
+  throttling or an ID conflict. Only generic status is exposed.
+- **Unverified:** no authoritative result is available—network/receipt timeout,
+  old deployment, busy lock, missing permissions, schema or server error, missing
+  row, or expired rejection cache. It does not mean “not saved.”
+
+Rejections are cached for five minutes by submission **and attempt** ID, with no
+contact data. Cache eviction changes an unknown rejection to Unverified, never
+Confirmed. Confirmation requires both the stored row and an accepted attempt ID,
+so even an evicted ID-conflict rejection cannot confirm the wrong request. Retries retain
+submission data and the same ID, but use a new attempt ID so stale rejections
+cannot poison later attempts. Valid retries update only R on new-protocol rows,
+never staff statuses/notes or historical rows. R retains the most recent 64
+accepted attempts; checks for older attempts conservatively become Unverified.
+Existing records with no matching fingerprint
+cannot be overwritten or retrospectively confirmed by this protocol.
+
+The UUIDs are correlation identifiers, not clinic credentials. A person who
+already knows both IDs can query their receipt status; the endpoint is not a private
+client portal. Do not publish IDs. Request logs may retain IDs and receipt
+timestamps. Only the POST carries contact details. A browser reload clears
+in-memory retries; copy the inquiry summary before leaving if needed.
+
+## Receiver safeguards and limits
+
+- Server validation for lengths, allowed choices, contact, consent and honeypot.
+- Authoritative service matching; client timestamps/recommendations are ignored.
+- All new spreadsheet values are literal text, protecting formulas and phone zeroes.
+- Script locking serializes schema checks, duplicate detection, writes and receipt
+  reads. Busy/time-limited operations remain retryable and Unverified.
+- Durable fingerprint detects different payloads reusing an ID. Retries never
+  change existing staff statuses or notes.
+- Best-effort Google-cache throttling: 60 new inquiries/hour globally and one
+  new inquiry/contact/minute. Same-payload retries bypass these limits.
+- The public endpoint is not authenticated. Cache limits/honeypots are not strong
+  bot prevention; Google quotas and denial-of-service risks still apply.
+- Protect Sheet/Apps Script access. Never share the clinical ledger publicly.
+  Code checks cannot replace staff access controls or retention operations.
+
+## Deployment and owner requirements
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for exact same-URL deployment steps and the
+read-only diagnostic. The supplied deployment currently lacks `doGet` and must
+be updated before the new browser can confirm receipts. No production ledger
+test records were inserted by these tests.
+
+`privacy.html` still requires the owner's verified privacy contact, approved
+retention policy, staff access/deletion procedures, provider/log review, and
+guardian/privacy-request process. These facts are not invented or certified by
+this repository. There is no automatic deletion job.
+
+## Matching and UI
+
+The existing design and matching precedence are unchanged:
+clearance → clearance evaluation; assessment → assessment battery;
+couple/family counseling → couples/family; otherwise → individual counseling.
+Format/timing remain preferences. This is administrative routing, not clinical
+triage or diagnosis. An inquiry is not a confirmed appointment.

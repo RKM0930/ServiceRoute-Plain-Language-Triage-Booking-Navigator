@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { randomUUID } from "node:crypto";
+import { createReceiver } from "./support/receiver.mjs";
 
 // Lightweight DOM double: tests state transitions and rendered markup, not layout.
-function app(fetchImpl = async () => { throw new Error("offline"); }) {
+function app(fetchImpl = async () => { throw new Error("offline"); },
+  receiptImpl = () => ({ status: "unverified" })) {
   const nodes = new Map();
+  const receiptScripts = [];
   function element(id = "") {
     const attributes = new Map();
     let html = "";
@@ -20,6 +23,7 @@ function app(fetchImpl = async () => { throw new Error("offline"); }) {
       addEventListener() {}, insertAdjacentElement() {},
       querySelectorAll() { return []; }, closest() { return null; },
       focus() {}, scrollIntoView() {},
+      remove() { this.removed = true; },
       showModal() { this.open = true; }, close() { this.open = false; },
       matches(selector) { return selector === `#${id}`; },
       get innerHTML() { return html; },
@@ -40,6 +44,24 @@ function app(fetchImpl = async () => { throw new Error("offline"); }) {
   const crisisProceed = element();
   const document = {
     body: element(),
+    head: {
+      appendChild(script) {
+        receiptScripts.push(script);
+        const url = new URL(script.src);
+        Promise.resolve().then(() => receiptImpl(url)).then((result) => {
+          if (result === "timeout") return;
+          if (result === "error") return script.onerror();
+          if (result.javascript) {
+            vm.runInNewContext(result.javascript, window);
+            return;
+          }
+          window[url.searchParams.get("callback")]?.({
+            protocol: "serviceroute-receipt-v1",
+            inquiry_id: url.searchParams.get("id"), ...result
+          });
+        }).catch(() => script.onerror());
+      }
+    },
     getElementById: (id) => nodes.get(id) || null,
     createElement: () => element(),
     querySelector: (selector) => selector === "[data-crisis-proceed]" ? crisisProceed : element()
@@ -48,21 +70,25 @@ function app(fetchImpl = async () => { throw new Error("offline"); }) {
   document.createElement = () => element();
   const window = {
     scrollTo() {}, requestAnimationFrame(fn) { fn(); },
-    setTimeout() { return 1; }, clearTimeout() {},
+    setTimeout(fn, delay) { return setTimeout(fn, delay === 5000 ? 10 : delay === 20000 ? 100 : 0); },
+    clearTimeout(timer) { clearTimeout(timer); },
     matchMedia() { return { matches: false }; }, confirm() { return true; }
   };
   let source = readFileSync(new URL("../app.js", import.meta.url), "utf8");
   source = source.replace("  init();", `  globalThis.hooks = {
     state, getRecommendation, isValidContact, advanceFromStep, goBack,
     showResult, editAnswers, resetIntake, handleInquirySubmit, postInquiry,
-    handleOptionChange, buildCopySummary, renderResult
+    handleOptionChange, buildCopySummary, renderResult, lookupReceipt
   }; init();`);
   const context = vm.createContext({
     document, window, console, crypto: { randomUUID }, AbortController,
-    fetch: fetchImpl, navigator: {}
+    fetch: fetchImpl, navigator: {}, URL, URLSearchParams
   });
   vm.runInContext(source, context);
-  return { ...context.hooks, nodes, crisisProceed };
+  return {
+    ...context.hooks, nodes, crisisProceed, receiptScripts,
+    pendingReceiptCallbacks: () => Object.keys(window).filter((key) => key.startsWith("__serviceRouteReceipt_"))
+  };
 }
 
 function fill(hooks, overrides = {}) {
@@ -162,7 +188,7 @@ test("invalid contact and missing consent never send", async () => {
   assert.equal(calls, 0);
 });
 
-test("sends directly to the configured Apps Script without claiming confirmed storage", async () => {
+test("opaque POST alone stays Unverified and receipt requests contain no contact data", async () => {
   const hooks = app(async (url, options) => {
     assert.equal(url, "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3WHiyhpQW_8LxbEAsMnNwgUQIXw6le92YVlCXis6dZMGUjY8tjg/exec");
     assert.equal(options.mode, "no-cors");
@@ -174,17 +200,21 @@ test("sends directly to the configured Apps Script without claiming confirmed st
     assert.ok(Number.isFinite(Date.parse(data.timestamp)));
     assert.equal("receiver_secret" in data, false);
     return { type: "opaque", status: 0, json() { throw new Error("Opaque body must not be read"); } };
+  }, (url) => {
+    assert.equal(url.searchParams.get("action"), "receipt");
+    assert.deepEqual([...url.searchParams.keys()].sort(), ["_", "action", "attempt", "callback", "id"]);
+    assert.equal(url.href.includes("09171234567"), false);
+    return { status: "unverified" };
   });
   fill(hooks);
   await submit(hooks);
-  assert.equal(hooks.state.submitted, true);
-  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Inquiry Sent/);
-  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /cannot verify that Google Sheets saved it/);
+  assert.equal(hooks.state.submitted, false);
+  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Submission Unverified/);
   assert.doesNotMatch(hooks.nodes.get("inquiry-mount").innerHTML, /Your inquiry was saved|Inquiry Received/);
-  assert.match(hooks.buildCopySummary(), /Delivery: Sent; receipt not verified/);
+  assert.match(hooks.buildCopySummary(), /Delivery: unverified/);
 });
 
-test("network failure shows interrupted sending; retries preserve the original payload", async () => {
+test("network failure stays Unverified; retry preserves submission data with a new attempt ID", async () => {
   const requests = [];
   let attempt = 0;
   const hooks = app(async (_, options) => {
@@ -196,13 +226,15 @@ test("network failure shows interrupted sending; retries preserve the original p
   fill(hooks);
   await submit(hooks);
   assert.equal(hooks.state.submitted, false);
-  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Connection interrupted/);
+  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Submission Unverified/);
   hooks.renderResult();
   await submit(hooks);
   assert.equal(requests[0].inquiry_id, requests[1].inquiry_id);
-  assert.deepEqual(requests[0], requests[1]);
-  assert.equal(hooks.state.submitted, true);
-  assert.match(hooks.buildCopySummary(), /receipt not verified/);
+  assert.notEqual(requests[0].attempt_id, requests[1].attempt_id);
+  const withoutAttempt = ({ attempt_id, ...data }) => data;
+  assert.deepEqual(withoutAttempt(requests[0]), withoutAttempt(requests[1]));
+  assert.equal(hooks.state.submitted, false);
+  assert.match(hooks.buildCopySummary(), /Delivery: unverified/);
 });
 
 test("opaque server errors cannot be distinguished from accepted requests", async () => {
@@ -210,8 +242,8 @@ test("opaque server errors cannot be distinguished from accepted requests", asyn
   const hooks = app(async () => ({ type: "opaque", status: 0, ok: false }));
   fill(hooks);
   await submit(hooks);
-  assert.equal(hooks.state.submitted, true);
-  assert.match(hooks.buildCopySummary(), /receipt not verified/);
+  assert.equal(hooks.state.submitted, false);
+  assert.match(hooks.buildCopySummary(), /Delivery: unverified/);
 });
 
 test("in-flight double submit sends only once", async () => {
@@ -228,7 +260,104 @@ test("in-flight double submit sends only once", async () => {
   assert.equal(calls, 1);
   finish();
   await pending;
+  assert.equal(hooks.state.submitted, false);
+});
+
+test("authoritative receipt confirms storage even when the POST response is lost", async () => {
+  const hooks = app(async () => { throw new Error("response lost after write"); },
+    () => ({ status: "confirmed", received_at: "2026-11-15T12:00:00.000Z" }));
+  fill(hooks);
+  await submit(hooks);
   assert.equal(hooks.state.submitted, true);
+  assert.equal(hooks.state.deliveryMode, "confirmed");
+  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Inquiry Confirmed/);
+  assert.match(hooks.buildCopySummary(), /Server received at: 2026-11-15T12:00:00.000Z/);
+});
+
+test("server-rejected requests show Failed, not Unverified or Confirmed", async () => {
+  const hooks = app(async () => ({ type: "opaque" }), () => ({ status: "failed" }));
+  fill(hooks);
+  await submit(hooks);
+  assert.equal(hooks.state.submitted, false);
+  assert.equal(hooks.state.deliveryMode, "failed");
+  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Submission Failed/);
+  assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /retry-inquiry/);
+});
+
+test("wrong IDs, protocol, timestamps and unknown statuses cannot confirm", async () => {
+  for (const result of [
+    { status: "confirmed", inquiry_id: randomUUID(), received_at: "2026-11-15" },
+    { status: "confirmed", received_at: "invalid" },
+    { status: "confirmed", received_at: "2026-11-15", protocol: "wrong" },
+    { status: "something-else" }
+  ]) {
+    const hooks = app(async () => ({ type: "opaque" }), () => result);
+    fill(hooks);
+    await submit(hooks);
+    assert.equal(hooks.state.deliveryMode, "unverified");
+  }
+});
+
+test("receipt errors, timeouts and old deployments remain Unverified", async () => {
+  for (const result of ["error", "timeout"]) {
+    const hooks = app(async () => ({ type: "opaque" }), () => result);
+    fill(hooks);
+    await submit(hooks);
+    assert.equal(hooks.state.deliveryMode, "unverified");
+    assert.deepEqual(hooks.pendingReceiptCallbacks(), []);
+    assert.ok(hooks.receiptScripts.every((script) => script.removed));
+  }
+});
+
+test("POST timeout still checks durable storage and clears the busy state", async () => {
+  const hooks = app((_, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener("abort", () => reject(new Error("timeout")));
+  }), () => ({ status: "confirmed", received_at: "2026-11-15T12:00:00.000Z" }));
+  fill(hooks);
+  await submit(hooks);
+  assert.equal(hooks.state.deliveryMode, "confirmed");
+  assert.equal(hooks.state.submitting, false);
+  assert.deepEqual(hooks.pendingReceiptCallbacks(), []);
+});
+
+test("simultaneous receipt callbacks are independent and cleaned up", async () => {
+  const hooks = app(undefined, () => ({ status: "confirmed", received_at: "2026-11-15T12:00:00.000Z" }));
+  const results = await Promise.all([
+    hooks.lookupReceipt(randomUUID(), randomUUID()), hooks.lookupReceipt(randomUUID(), randomUUID())
+  ]);
+  assert.ok(results.every((result) => result.status === "confirmed"));
+  assert.deepEqual(hooks.pendingReceiptCallbacks(), []);
+  assert.ok(hooks.receiptScripts.every((script) => script.removed));
+});
+
+test("receipt polling tolerates eventual storage and stops once confirmed", async () => {
+  let lookups = 0;
+  const hooks = app(async () => ({ type: "opaque" }), () => ++lookups === 1
+    ? { status: "unverified" }
+    : { status: "confirmed", received_at: "2026-11-15T12:00:00.000Z" });
+  fill(hooks);
+  await submit(hooks);
+  assert.equal(lookups, 2);
+  assert.equal(hooks.state.submitted, true);
+});
+
+test("real frontend payload and receiver JSONP work together with the historical ledger", async () => {
+  const receiver = createReceiver();
+  const historical = structuredClone(receiver.rows.slice(1));
+  const hooks = app(async (_, options) => {
+    const result = receiver.send(JSON.parse(options.body));
+    assert.equal(result.status, "confirmed");
+    return { type: "opaque" };
+  }, (url) => {
+    const result = receiver.get(Object.fromEntries(url.searchParams));
+    return { javascript: result.body };
+  });
+  fill(hooks);
+  await submit(hooks);
+  assert.equal(hooks.state.submitted, true);
+  assert.equal(receiver.rows[3][12], hooks.state.payload.inquiry_id);
+  assert.equal(receiver.rows[3][8], hooks.state.contact);
+  assert.deepEqual(receiver.rows.slice(1, 3), historical);
 });
 
 test("start over removes all inquiry and contact information", () => {
@@ -238,7 +367,7 @@ test("start over removes all inquiry and contact information", () => {
     contact: "private@example.com", preferredName: "Private",
     scheduleNotes: "Friday afternoon", referral: "facebook",
     consent: true, payload: { contact: "private@example.com" },
-    deliveryMode: "sent", submitted: true
+    deliveryMode: "confirmed", submitted: true, receivedAt: "2026-11-15T12:00:00.000Z"
   });
   hooks.resetIntake();
   assert.equal(hooks.state.scheduleNotes, "");
@@ -248,5 +377,6 @@ test("start over removes all inquiry and contact information", () => {
   assert.equal(hooks.state.payload, null);
   assert.equal(hooks.state.consent, false);
   assert.equal(hooks.state.submitted, false);
+  assert.equal(hooks.state.receivedAt, null);
   assert.ok(Object.values(hooks.state.answers).every((value) => value === null));
 });

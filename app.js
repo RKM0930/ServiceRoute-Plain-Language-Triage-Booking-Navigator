@@ -10,6 +10,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
 (() => {
   const FETCH_TIMEOUT_MS = 20000;
+  const RECEIPT_TIMEOUT_MS = 5000;
   const PRIVACY_VERSION = "2026-11-15";
 
   const STEPS = [
@@ -238,6 +239,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     submitted: false,
     crisisAcknowledged: false,
     deliveryMode: null,
+    receivedAt: null,
     payload: null
   };
 
@@ -628,6 +630,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
         !window.confirm("Receipt is unconfirmed. Editing will create a new inquiry; the original may already be saved. Continue?")) return;
     state.payload = null;
     state.deliveryMode = null;
+    state.receivedAt = null;
     state.phase = "intake";
     state.submitted = false;
     state.step = 4;
@@ -648,6 +651,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     state.submitted = false;
     state.crisisAcknowledged = false;
     state.deliveryMode = null;
+    state.receivedAt = null;
     state.payload = null;
 
     hideToast();
@@ -818,23 +822,26 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     state.submitting = true;
     setSubmittingState();
 
-    let deliveryMode = "unconfirmed";
+    let result;
     try {
-      await postInquiry(payload);
-      deliveryMode = "sent";
+      result = await postInquiry(payload);
     } catch {
-      // A timeout or dropped response does not prove that storage failed.
+      // Unexpected browser restrictions must not leave the form stuck as busy.
+      result = { status: "unverified" };
     }
 
     state.submitting = false;
-    // "submitted" means the browser completed sending, not confirmed sheet storage.
-    state.submitted = deliveryMode === "sent";
-    state.deliveryMode = deliveryMode;
+    state.submitted = result.status === "confirmed";
+    state.deliveryMode = result.status;
+    state.receivedAt = result.received_at || null;
     state.payload = payload;
+    const editButton = document.querySelector('[data-action="edit-answers"]');
+    if (editButton) editButton.disabled = false;
     renderSuccess();
   }
 
   async function postInquiry(payload) {
+    const attempt = crypto.randomUUID();
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -845,26 +852,74 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
         headers: { "Content-Type": "text/plain;charset=UTF-8" },
         credentials: "omit",
         redirect: "follow",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, attempt_id: attempt }),
         signal: controller.signal
       });
-      // Apps Script returns an opaque response. Do not read it or claim storage.
+      // An opaque POST is never evidence of storage.
+    } catch {
+      // Even an aborted POST may have committed. Always check the ledger.
     } finally {
       window.clearTimeout(timeout);
     }
+    for (let index = 0; index < 3; index++) {
+      const result = await lookupReceipt(payload.inquiry_id, attempt);
+      if (result.status !== "unverified") return result;
+      if (index < 2) await new Promise((resolve) => window.setTimeout(resolve, 500));
+    }
+    return { status: "unverified" };
+  }
+
+  // Read-only JSONP works with Apps Script redirects without a proxy or CORS.
+  // Only correlation UUIDs are sent, never contact data or server credentials.
+  function lookupReceipt(id, attempt) {
+    return new Promise((resolve) => {
+      const callback = "__serviceRouteReceipt_" + crypto.randomUUID().replaceAll("-", "");
+      const script = document.createElement("script");
+      let settled = false;
+      let timeout;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        script.remove();
+        delete window[callback];
+        resolve(result);
+      };
+      window[callback] = (result) => {
+        if (!result || result.protocol !== "serviceroute-receipt-v1" ||
+            result.inquiry_id !== id || !["confirmed", "unverified", "failed"].includes(result.status) ||
+            (result.status === "confirmed" && (typeof result.received_at !== "string" ||
+              !Number.isFinite(Date.parse(result.received_at))))) {
+          finish({ status: "unverified" });
+          return;
+        }
+        // Copy only the public receipt fields; never render arbitrary server data.
+        finish({ status: result.status, received_at: result.status === "confirmed" ? result.received_at : undefined });
+      };
+      script.onerror = () => finish({ status: "unverified" });
+      script.referrerPolicy = "no-referrer";
+      const url = new URL(SCRIPT_URL);
+      url.search = new URLSearchParams({ action: "receipt", id, attempt, callback, _: String(Date.now()) }).toString();
+      script.src = url.href;
+      timeout = window.setTimeout(() => finish({ status: "unverified" }), RECEIPT_TIMEOUT_MS);
+      document.head.appendChild(script);
+    });
   }
 
   function deliveryNoteMarkup() {
-    if (state.deliveryMode !== "sent") {
+    if (state.deliveryMode === "failed") {
+      return '<p class="delivery-note"><strong>Failed:</strong> the server rejected this attempt. Check your details or try again later using the same inquiry ID. No appointment has been booked.</p>';
+    }
+    if (state.deliveryMode !== "confirmed") {
       return `
         <p class="delivery-note">
           ${icon("wifiOff")}
-          <span><strong>Connection interrupted.</strong> We could not finish sending your inquiry. It may still have reached the clinic. Copy your details or retry using the same inquiry ID. Older clinic receivers may not prevent duplicate inquiries. Do not rely on this inquiry for urgent support.</span>
+          <span><strong>Unverified:</strong> we could not verify storage. Your inquiry may still have reached the clinic. Copy your details or retry using the same inquiry ID to avoid duplicate rows with the updated receiver. Do not rely on this inquiry for urgent support.</span>
         </p>
       `;
     }
 
-    return '<p class="delivery-note">Sent to the clinic’s Google Apps Script endpoint. This browser cannot verify that Google Sheets saved it. Your appointment is not confirmed; please wait for the clinic to contact you, or follow up through its verified official channels.</p>';
+    return '<p class="delivery-note"><strong>Confirmed:</strong> the clinic’s server verified your inquiry in its intake ledger. This confirms receipt only, not an appointment. Please wait for the clinic to confirm availability.</p>';
   }
 
   function renderSuccess() {
@@ -873,8 +928,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     mount.innerHTML = `
       <section class="success-card" aria-labelledby="success-title">
-        <h2 class="success-title" id="success-title" tabindex="-1">${state.submitted ? "Inquiry Sent" : "We Couldn’t Complete Sending"}</h2>
-        <p class="success-message">${state.submitted ? "Thank you. Your inquiry has been sent for appointment coordination. Receipt has not been verified." : "Please check your connection. No follow-up is guaranteed until the clinic confirms receipt."}</p>
+        <h2 class="success-title" id="success-title" tabindex="-1">${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"}</h2>
+        <p class="success-message">${state.submitted ? "Thank you. Your inquiry was saved for appointment coordination." : "No follow-up is guaranteed until the clinic confirms receipt."}</p>
         <p>Inquiry ID: <strong>${escapeHTML(state.payload.inquiry_id)}</strong></p>
         ${deliveryNoteMarkup()}
         <div class="success-actions">
@@ -889,7 +944,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       </section>
     `;
 
-    document.title = `${state.submitted ? "Inquiry Sent" : "Sending Interrupted"} | ServiceRoute`;
+    document.title = `${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"} | ServiceRoute`;
     updateActionDock();
 
     const successTitle = document.getElementById("success-title");
@@ -918,8 +973,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     return [
       "ServiceRoute — Inquiry Details",
       `Inquiry ID: ${payload.inquiry_id}`,
-      `Delivery: ${state.submitted ? "Sent; receipt not verified" : "Sending interrupted; receipt unknown"}`,
+      `Delivery: ${state.deliveryMode || "unverified"}`,
       `Prepared (browser time, Asia/Manila): ${submittedAt}`,
+      `Server received at: ${state.receivedAt || "Not verified"}`,
       "",
       `Preferred name: ${payload.preferred_name || "Anonymous"}`,
       `Client: ${getAnswerLabel("client", payload.client_type)}`,
