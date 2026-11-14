@@ -1,1 +1,19 @@
-PLACEHOLDER_WILL_BE_REPLACED
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs / temp
+*.log
+repomix-output.xml
+*.tmp
+
+# Local config overrides (optional)
+config.local.js
+.env
+.env.local
