@@ -160,22 +160,38 @@ a {
   transform: translateY(0);
 }
 
-/* ---------- Persistent emergency notice ---------- */
+/* ---------- Compact, expandable emergency notice ---------- */
 
 .emergency-banner {
   position: sticky;
   top: 0;
   z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: var(--surface);
+  padding: 0 18px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
+}
+
+.emergency-banner summary {
+  min-height: 44px;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.emergency-banner summary::marker {
+  color: var(--accent);
+}
+
+.emergency-banner summary:hover,
+.language-selector button:hover {
+  color: var(--ink);
 }
 
 .emergency-banner p {
   margin: 0;
+  padding: 0 0 14px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
@@ -231,12 +247,12 @@ a {
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--accent);
+  color: var(--muted);
+  font-size: 12px;
   cursor: pointer;
 }
 
 .language-selector button[aria-pressed="true"] {
-  background: #EAF0EC;
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 5px;

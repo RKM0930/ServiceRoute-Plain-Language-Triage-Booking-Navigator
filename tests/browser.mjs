@@ -79,7 +79,7 @@ try {
   }
   async function assertLayout() {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    for (const control of await page.locator(".button, .language-selector button, .option-card").all()) {
+    for (const control of await page.locator(".button, .language-selector button, .option-card, .emergency-banner summary").all()) {
       if (!(await control.isVisible())) continue;
       const box = await control.boundingBox();
       assert.ok(box && box.height >= 44 && box.width >= 44, "compact controls retain 44px touch targets");
@@ -158,6 +158,24 @@ try {
   assert.ok((await page.locator("#progress-fill").boundingBox()).width > 0);
   await axe("initial intake");
   report.checks.push("skip link, progress, disabled navigation and initial accessibility");
+  const emergency = page.locator(".emergency-banner");
+  const emergencyToggle = emergency.locator("summary");
+  assert.equal(await emergency.evaluate((el) => el.open), false);
+  assert.equal(await emergency.locator('a[href="tel:1553"]').isVisible(), false);
+  await emergencyToggle.focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await emergency.evaluate((el) => el.open), true);
+  assert.equal(await emergency.locator('a[href="tel:1553"]').isVisible(), true);
+  await language("en");
+  assert.equal(await emergencyToggle.textContent(), "Emergency notice");
+  assert.equal(await emergency.evaluate((el) => el.open), true);
+  await axe("expanded emergency notice English");
+  await language("fil");
+  await axe("expanded emergency notice Filipino");
+  await emergencyToggle.focus();
+  await page.keyboard.press("Space");
+  assert.equal(await emergency.evaluate((el) => el.open), false);
+  report.checks.push("keyboard-operated emergency disclosure, hotline links and open state preserved across languages");
 
   for (const client of ["adult", "minor", "couple_family"])
     for (const goal of ["counseling", "clearance", "assessment"])
