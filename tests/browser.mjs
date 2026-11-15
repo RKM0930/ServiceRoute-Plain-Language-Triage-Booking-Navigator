@@ -255,10 +255,19 @@ try {
   assert.equal(await contact.getAttribute("aria-invalid"), "true");
   await contact.fill("09171234567");
   assert.equal(await contact.getAttribute("aria-invalid"), "false");
-  await page.locator('input[name="referral"][value="instagram"]').focus();
-  await page.keyboard.press("Space");
-  await page.keyboard.press("ArrowRight");
-  assert.equal(await page.locator('input[name="referral"][value="facebook"]').isChecked(), true);
+  const referral = page.locator("#referral-select");
+  assert.equal(await page.getByLabel("Saan mo nalaman ang Kahilom? (Opsyonal)").count(), 1);
+  await referral.selectOption("instagram");
+  await referral.focus();
+  // Native select type-ahead works across macOS/headless popup implementations.
+  await page.keyboard.press("f");
+  await page.keyboard.press("Tab");
+  assert.equal(await referral.inputValue(), "facebook");
+  await language("en");
+  assert.equal(await referral.inputValue(), "facebook");
+  assert.equal(await page.getByLabel("How did you hear about Kahilom? (Optional)").count(), 1);
+  assert.equal(await referral.locator('option[value=""]').textContent(), "Choose (optional)");
+  await language("fil");
   await page.locator("#schedule-notes-input").fill("Friday afternoon");
   await page.locator('[data-action="edit-answers"]').click();
   await choose("schedule", "weekend");
@@ -269,10 +278,12 @@ try {
   await page.locator("#continue-button").click();
   assert.equal(await nameInput.inputValue(), "de la cruz");
   assert.equal(await page.locator("#schedule-notes-input").inputValue(), "Friday afternoon");
+  assert.equal(await page.locator("#referral-select").inputValue(), "facebook");
   mode = "hold";
   await page.locator("#submit-inquiry").click();
   await page.waitForFunction(() => document.querySelector("#inquiry-form").getAttribute("aria-busy") === "true");
   assert.equal(await page.locator("#submit-inquiry").isDisabled(), true);
+  assert.equal(await page.locator("#referral-select").isDisabled(), true);
   assert.match(await page.locator("#submission-status").textContent(), /Ipinapadala/);
   await page.locator("#inquiry-form").evaluate((form) => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   await heldPost;
@@ -305,7 +316,7 @@ try {
   assert.ok(copied.includes(posts[0].inquiry_id) && copied.includes("0917-123-4567"));
   assert.ok(copied.includes("confirmed"));
   assert.equal(await page.locator("#toast").isVisible(), true);
-  report.checks.push("strict errors/focus, first-blur names/manual correction, canonical phone, referral arrows, edit/back, loading/double submit, copy");
+  report.checks.push("strict errors/focus, first-blur names/manual correction, canonical phone, referral dropdown keyboard/language/state preservation, edit/back, loading/double submit, copy");
 
   await page.locator('[data-action="start-over"]').click();
   for (const [field, value] of [["client", "adult"], ["goal", "counseling"], ["format", "online"], ["schedule", "flexible"]]) {
@@ -316,7 +327,7 @@ try {
     assert.equal(await page.locator(selector).inputValue(), "");
   }
   assert.equal(await page.locator("#consent-checkbox").isChecked(), false);
-  assert.equal(await page.locator('input[name="referral"]:checked').count(), 0);
+  assert.equal(await page.locator("#referral-select").inputValue(), "");
   report.checks.push("start-over clears all personal details and choices");
 
   for (const [scenario, heading] of [

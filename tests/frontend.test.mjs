@@ -307,7 +307,7 @@ test("urgent schedule requires acknowledgment before result", () => {
   assert.equal(hooks.state.phase, "result");
 });
 
-test("result includes review, native referral radios, notice and format warnings", () => {
+test("result includes review, labeled native referral dropdown, notice and format warnings", () => {
   const hooks = app();
   fill(hooks, { goal: "clearance" });
   const markup = hooks.nodes.get("step-root").innerHTML;
@@ -315,6 +315,10 @@ test("result includes review, native referral radios, notice and format warnings
   assert.match(markup, /Kumpirmahin ang kasalukuyang presyo/);
   assert.match(markup, /data-action="edit-answers"/);
   assert.match(markup, /name="referral"/);
+  assert.match(markup, /<label[^>]+for="referral-select"/);
+  assert.match(markup, /<select[^>]+id="referral-select"[^>]+name="referral"/);
+  assert.match(markup, /<option value="facebook"/);
+  assert.doesNotMatch(markup, /type="radio" name="referral"/);
   assert.match(markup, /privacy.html/);
   hooks.editAnswers();
   assert.equal(hooks.state.phase, "intake");

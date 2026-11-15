@@ -564,6 +564,11 @@ a {
   outline-offset: 2px;
 }
 
+.referral-select {
+  appearance: auto;
+  min-height: 44px;
+}
+
 .has-error .contact-input {
   border-color: #8C342B;
 }

@@ -2,6 +2,7 @@
 "use strict";
 (() => {
   const en = {
+    "Pumili (opsyonal)": "Choose (optional)",
     "Mga detalye ng inquiry": "Inquiry details",
     "Natanggap ang inquiry": "Inquiry Confirmed",
     "Hindi tinanggap ang inquiry": "Submission Failed",

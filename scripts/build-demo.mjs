@@ -37,7 +37,7 @@ html = html
   .replace(/<footer class="site-footer">[\s\S]*?<\/footer>/, '<footer class="site-footer"><p>Demonstrasyon lamang — walang ipinapadala o sine-save na sagot. Hindi ito booking o clinical assessment.</p></footer>')
   .replace("Walang garantisadong same-day slot sa Kahilom. Ang inquiry na ito ay hindi emergency service.", "Walang garantisadong same-day slot sa Kahilom. Ang demonstrasyong ito ay hindi emergency service.")
   .replace("Magpatuloy sa inquiry", "Magpatuloy sa demonstrasyon")
-  .replace('src="app.js"', 'src="demo.js"');
+  .replace(/src="app\.js(?:\?[^"]*)?"/, 'src="demo.js"');
 const catalog = (await readFile("i18n.js", "utf8"))
   .replace("const en = {", `const en = {\n${Object.entries(translations).map(([key, value]) => `    ${JSON.stringify(key)}: ${JSON.stringify(value)},`).join("\n")}`);
 const runtime = `"use strict";\n(() => {\n${data}\n${routing.replace("answers = state.answers", "answers")}\n${await readFile("scripts/demo-app.js", "utf8")}\n})();\n`;

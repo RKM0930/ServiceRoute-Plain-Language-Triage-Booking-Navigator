@@ -561,20 +561,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
           </div>
 
           <div class="field-group">
-            <fieldset class="referral-row" id="referral-row">
-              <legend class="field-label">Saan mo nalaman ang Kahilom? (Opsyonal)</legend>
+            <label class="field-label" for="referral-select">Saan mo nalaman ang Kahilom? (Opsyonal)</label>
+            <select class="contact-input referral-select" id="referral-select" name="referral">
+              <option value="" ${!state.referral ? "selected" : ""}>Pumili (opsyonal)</option>
               ${referralOptions
                 .map((option) => {
                   const selected = state.referral === option.value;
-                  return `
-                    <label class="referral-pill">
-                      <input type="radio" name="referral" value="${option.value}" ${selected ? "checked" : ""}>
-                      ${escapeHTML(option.title)}
-                    </label>
-                  `;
+                  return `<option value="${option.value}" ${selected ? "selected" : ""}>${escapeHTML(option.title)}</option>`;
                 })
                 .join("")}
-            </fieldset>
+            </select>
           </div>
 
           <label class="consent-card" for="consent-checkbox">
@@ -746,7 +742,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     const consent = document.getElementById("consent-checkbox");
 
     if (form) form.setAttribute("aria-busy", "true");
-    form?.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
+    form?.querySelectorAll("input, select, button").forEach((control) => { control.disabled = true; });
     if (input) input.readOnly = true;
     if (consent) consent.disabled = true;
 
@@ -1141,8 +1137,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
         handleOptionChange(event);
         return;
       }
-      if (event.target.matches('input[name="referral"]')) {
-        state.referral = event.target.value;
+      if (event.target.matches('select[name="referral"]')) {
+        state.referral = event.target.value || null;
       }
       handleConsentChange(event);
     });
