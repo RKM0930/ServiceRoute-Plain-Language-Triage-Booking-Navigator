@@ -378,10 +378,51 @@ function intakeViewTimestampFormula() {
     '" "&IF(HOUR(local)>=12,"PM","AM"),"")),"")),"")))';
 }
 
+/** Owner-supplied A1:F2 structure; exact expressions prevent guessing row mappings. */
+function intakeViewSixColumnSpec() {
+  return {
+    headers: ["Date & Time (PHT)", "Preferred Name", "Contact", "Recommended Service", "Status", "Staff Notes"],
+    formulas: [
+      '=ARRAYFORMULA(IF(Intake!A2:A="","",IFERROR(IF(ISNUMBER(Intake!A2:A),TEXT(Intake!A2:A,"dd mmm yyyy, h:mm AM/PM"),TEXT(DATEVALUE(LEFT(Intake!A2:A,10))+TIMEVALUE(MID(Intake!A2:A,12,8))+TIME(8,0,0),"dd mmm yyyy, h:mm AM/PM")),Intake!A2:A)))',
+      '=ARRAYFORMULA(IF(Intake!A2:A="","",IF(Intake!B2:B="","",PROPER(Intake!B2:B))))',
+      '=ARRAYFORMULA(IF(Intake!A2:A="","",IF(REGEXMATCH(TO_TEXT(Intake!I2:I),"^[0-9+(). -]+$"),IF(REGEXMATCH(REGEXREPLACE(TO_TEXT(Intake!I2:I),"[^0-9]",""),"^09[0-9]{9}$"),REGEXREPLACE(REGEXREPLACE(TO_TEXT(Intake!I2:I),"[^0-9]",""),"^([0-9]{4})([0-9]{3})([0-9]{4})$","$1-$2-$3"),IF(REGEXMATCH(REGEXREPLACE(TO_TEXT(Intake!I2:I),"[^0-9]",""),"^[0-9]{10}$"),REGEXREPLACE(REGEXREPLACE(TO_TEXT(Intake!I2:I),"[^0-9]",""),"^([0-9]{3})([0-9]{3})([0-9]{4})$","$1-$2-$3"),IF(REGEXMATCH(REGEXREPLACE(TO_TEXT(Intake!I2:I),"[^0-9]",""),"^639[0-9]{9}$"),REGEXREPLACE(REGEXREPLACE(TO_TEXT(Intake!I2:I),"[^0-9]",""),"^63([0-9]{3})([0-9]{3})([0-9]{4})$","+63-$1-$2-$3"),TO_TEXT(Intake!I2:I)))),TO_TEXT(Intake!I2:I))))',
+      '=ARRAYFORMULA(IF(Intake!A2:A="","",Intake!H2:H))',
+      '=ARRAYFORMULA(IF(Intake!A2:A="","",Intake!K2:K))',
+      '=ARRAYFORMULA(IF(Intake!A2:A="","",Intake!L2:L))'
+    ],
+    nameFormula: '=ARRAYFORMULA(IF(Intake!A2:A="","",IF(Intake!B2:B="","",Intake!B2:B)))'
+  };
+}
+
 function intakeViewSnapshot() {
   const source = ledger(false);
   const view = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Intake View");
-  if (!view || view.getMaxColumns() < 18) throw new Error("Existing Intake View is missing or incompatible");
+  if (!view || view.getMaxColumns() < 6) throw new Error("Existing Intake View is missing or incompatible");
+  const spec = intakeViewSixColumnSpec();
+  const sixHeaders = view.getRange(1, 1, 1, 6).getValues()[0];
+  if (spec.headers.every((header, index) => sixHeaders[index] === header)) {
+    const formulas = view.getRange(1, 1, 2, 6).getFormulas();
+    const desired = "=" + intakeViewTimestampFormula();
+    if (formulas[0].some(Boolean) || formulas[1].some((formula, index) =>
+      formula !== spec.formulas[index] &&
+      !(index === 0 && formula === desired) &&
+      !(index === 1 && formula === spec.nameFormula))) {
+      throw new Error("Unsupported six-column view formula; no changes made");
+    }
+    for (const anchor of ["A2", "B2", "C2", "D2", "E2", "F2"]) {
+      if (/^#/.test(view.getRange(anchor).getDisplayValue())) {
+        throw new Error("Existing view has a formula/spill error; inspect it before setup");
+      }
+    }
+    return {
+      source, view, layout: "six-column", target: "A2", current: formulas[1][0], desired,
+      changes: [
+        { target: "A2", current: formulas[1][0], desired },
+        { target: "B2", current: formulas[1][1], desired: spec.nameFormula }
+      ]
+    };
+  }
+  if (view.getMaxColumns() < 18) throw new Error("View headers differ; no changes made");
   const formulas = view.getRange(1, 1, 2, 18).getFormulas();
   const normalize = (formula) => formula.replace(/\s+/g, "").replace(/'Intake'/g, "Intake").toUpperCase();
   const a1 = normalize(formulas[0][0]);
@@ -424,6 +465,12 @@ function inspectIntakeViewFormatting() {
       timestamp_types: intakeTimestampTypes(snapshot.source),
       target: snapshot.target, current_formula: snapshot.current,
       proposed_formula: snapshot.desired,
+      layout: snapshot.layout || "identity",
+      planned_changes: (snapshot.changes || [snapshot])
+        .filter((change) => change.current !== change.desired)
+        .map((change) => ({
+          target: change.target, current_formula: change.current, proposed_formula: change.desired
+        })),
       capacity_ready: snapshot.view.getMaxRows() >= snapshot.source.getMaxRows()
     };
   } finally { lock.releaseLock(); }
@@ -453,19 +500,26 @@ function ensureIntakeViewFormatting() {
     if (snapshot.view.getMaxRows() < snapshot.source.getMaxRows()) {
       throw new Error("View needs at least as many grid rows as Intake; no changes made");
     }
-    if (snapshot.current === snapshot.desired) return { changed: false, target: snapshot.target };
-    const target = snapshot.view.getRange(snapshot.target);
+    const changes = (snapshot.changes || [snapshot]).filter((change) => change.current !== change.desired);
+    if (!changes.length) return { changed: false, target: snapshot.target, targets: [] };
+    const attempted = [];
     try {
-      target.setFormula(snapshot.desired);
-      SpreadsheetApp.flush();
-      if (target.getFormula() !== snapshot.desired || /^#/.test(target.getDisplayValue())) {
-        throw new Error("View formula was not accepted");
+      for (const change of changes) {
+        const target = snapshot.view.getRange(change.target);
+        attempted.push(change);
+        target.setFormula(change.desired);
+        SpreadsheetApp.flush();
+        if (target.getFormula() !== change.desired || /^#/.test(target.getDisplayValue())) {
+          throw new Error("View formula was not accepted");
+        }
       }
     } catch (_) {
-      target.setFormula(snapshot.current);
+      for (const change of attempted.reverse()) {
+        snapshot.view.getRange(change.target).setFormula(change.current);
+      }
       SpreadsheetApp.flush();
       throw new Error("Timestamp setup failed; original view formula restored");
     }
-    return { changed: true, target: snapshot.target };
+    return { changed: true, target: snapshot.target, targets: changes.map((change) => change.target) };
   } finally { lock.releaseLock(); }
 }

@@ -38,17 +38,21 @@ literal number format is used.
 View timestamps are display text; use the authoritative timestamps for sorting
 or chronological calculations rather than sorting these formatted labels.
 
-Only recognized identity views are supported: a whole A–R identity array at A1,
-or matching per-column identity arrays with timestamps at A2. The other columns,
-conditional formats, validations, statuses and authoritative records are untouched.
+The owner's six-column view is recognized by its exact headers and A2:F2 formulas.
+Setup replaces A2's locale-dependent date parsing with numeric UTC parsing, and
+removes B2's redundant `PROPER()` so names display exactly as stored. C2:F2 remain
+byte-for-byte unchanged. Previously supported whole A–R and per-column identity
+views remain supported. Conditional formats, validations, statuses and
+authoritative records are untouched.
 Unknown SORT/QUERY/FILTER mappings, errors, unsupported source cell types or
 insufficient grid capacity stop setup without guessing. A rejected formula is
-rolled back. Re-running a successful setup is a no-op; no formatting repair runs
+rolled back, including both attempted anchors if B2 fails. Re-running a successful setup is a no-op; no formatting repair runs
 on POST. New rows/cleared records are handled by the formula within the view's
 normal Google Sheets grid capacity. Grow the view grid if Intake's grid grows.
 
-Actual authenticated production formulas and Google formula evaluation could
-not be inspected here. Follow the preflight and isolated acceptance in
+Regression fixtures use the exact six-column formulas supplied by the owner;
+authenticated production access and Google formula evaluation remain unverified.
+Follow the preflight and isolated acceptance in
 `DEPLOYMENT.md`; do not overwrite a custom view to force setup.
 
 ## Filipino–English interface

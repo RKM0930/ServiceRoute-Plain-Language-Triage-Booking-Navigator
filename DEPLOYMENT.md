@@ -77,19 +77,24 @@ were made remotely. Tests use local Apps Script/Sheets mocks.
 ### One-time timestamp presentation setup (owner only)
 
 1. After saving `Code.gs`, run/debug `inspectIntakeViewFormatting()` privately in
-   the owner editor. Inspect `current_formula`, `proposed_formula`,
+   the owner editor. Inspect `layout`, `planned_changes`, `current_formula`, `proposed_formula`,
    `timestamp_types` and `capacity_ready`. Also inspect the actual `Intake View`
    formula bar. This workspace did not have authenticated access to those formulas.
-2. If it recognizes an A1 whole-identity view or an A2 per-column identity view,
+2. For the supplied six-column view, expect `layout: "six-column"` and planned
+   changes at A2 (timestamp) and B2 (preferred name), or only the remaining legacy
+   anchor if partially upgraded. C2:F2 must match the owner-supplied expressions
+   exactly. Legacy A1 whole-identity and A2 per-column identity views remain supported.
+   If recognized,
    source cells are ISO text (or blank), and capacity is sufficient, run
-   `ensureIntakeViewFormatting()` **once as owner**. This changes only that view's
-   formula anchor; it does not change Intake or its raw A/P cells.
+   validate the proposed formulas in an isolated workbook first (step 5), then run
+   `ensureIntakeViewFormatting()` **once as owner**. This changes only A2/B2 in the
+   six-column view; it does not change Intake, raw A/P cells, or stored names.
 3. Re-run setup to verify `changed: false`. Preserve every other formula, validation
    and conditional-format rule. No trigger or per-row formatting is required.
 4. If preflight reports an unknown mapping (especially a sorted/filtered QUERY),
    stop. Do not clear the view, edit ledger timestamps, or replace the formula by
    hand with a guessed identity formula. The actual existing formula is required
-   for a safe targeted adaptation. Formula errors are rolled back automatically.
+    for a safe targeted adaptation. Formula errors restore all attempted anchors.
 5. Test in an isolated workbook: UTC midnight/month/year rollovers, empty ledger,
    new rows and cleared rows. Source `2026-11-15T01:48:00.000Z` should display
    `15 Nov 2026, 9:48 AM`; raw A/P and receipt output must remain the ISO string.
@@ -99,6 +104,37 @@ were made remotely. Tests use local Apps Script/Sheets mocks.
 
 View setup uses the newly saved editor source; it does not itself publish a new
 web app version. Complete the existing-deployment New version step separately.
+No frontend publication is needed for this six-column compatibility correction.
+
+#### Exact six-column formula changes
+
+A2 before (owner-supplied):
+```excel
+=ARRAYFORMULA(IF(Intake!A2:A="","",IFERROR(IF(ISNUMBER(Intake!A2:A),TEXT(Intake!A2:A,"dd mmm yyyy, h:mm AM/PM"),TEXT(DATEVALUE(LEFT(Intake!A2:A,10))+TIMEVALUE(MID(Intake!A2:A,12,8))+TIME(8,0,0),"dd mmm yyyy, h:mm AM/PM")),Intake!A2:A)))
+```
+
+A2 after (`"=" + intakeViewTimestampFormula()`; also returned in preflight):
+```excel
+=MAP(Intake!A2:A,LAMBDA(raw,IFERROR(IF(raw="","",IF(REGEXMATCH(raw,"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$"),LET(y,VALUE(LEFT(raw,4)),mo,VALUE(MID(raw,6,2)),d,VALUE(MID(raw,9,2)),h,VALUE(MID(raw,12,2)),mi,VALUE(MID(raw,15,2)),s,VALUE(MID(raw,18,2)),utc,DATE(y,mo,d)+TIME(h,mi,s),local,utc+8/24,IF(AND(YEAR(utc)=y,MONTH(utc)=mo,DAY(utc)=d,h<24,mi<60,s<60),DAY(local)&" "&CHOOSE(MONTH(local),"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")&" "&YEAR(local)&", "&IF(MOD(HOUR(local),12)=0,12,MOD(HOUR(local),12))&":"&TEXT(MINUTE(local),"00")&" "&IF(HOUR(local)>=12,"PM","AM"),"")),"")),"")))
+```
+
+This removes `DATEVALUE`/`TIMEVALUE` and locale-dependent month names. It is
+intentionally restricted to the ledger's UTC ISO text, not guessed native dates;
+preflight refuses non-ISO source cells. Local tests check conversion and formula
+construction, not Google Sheets evaluation. Owner acceptance remains required.
+
+B2 before:
+```excel
+=ARRAYFORMULA(IF(Intake!A2:A="","",IF(Intake!B2:B="","",PROPER(Intake!B2:B))))
+```
+
+B2 after:
+```excel
+=ARRAYFORMULA(IF(Intake!A2:A="","",IF(Intake!B2:B="","",Intake!B2:B)))
+```
+
+C2:F2, all six headers, validation and conditional formatting are not written.
+`McDonald`, `de la Cruz` and `Juan Dela Cruz` retain their stored capitalization.
 
 ### Staff duplicate-review check
 
