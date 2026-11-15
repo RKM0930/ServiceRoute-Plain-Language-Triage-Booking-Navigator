@@ -22,6 +22,26 @@ The optional build copies the five browser assets to `public/`. It does not
 deploy Apps Script. Publish `index.html`, `style.css`, `app.js`, `i18n.js`, and
 `privacy.html` through your existing host.
 
+## Public classroom demo
+
+The separate `docs/` site is an endpoint-free demonstration, not the production
+clinic app. It includes all four questions, recommendations, Filipino/English,
+emergency reminders, back navigation and restart. It never asks for personal
+details, submits inquiries, checks receipts, or persists answers.
+
+GitHub Pages publishes **main → /docs**. Only static demo assets are published;
+root production files and `Code.gs` must never be copied into this folder.
+The demo's CSP blocks network connections and form submissions. GitHub still
+receives ordinary page/asset requests; answers are never included in those URLs.
+
+Rebuild after changing questionnaire presentation: `npm run build:demo`.
+This reuses only static question/service data, the pure matching function, local
+translations and CSS; production transport code is not included.
+Run `npm test` and, with the documented external browser tools,
+`npm run test:demo`. Set `DEMO_URL` to the Pages URL to run the same browser
+checks against the deployed demo. Tests block and report unexpected outbound
+requests, check all 54 routes, both languages, five widths, and accessibility.
+
 ## Philippine timestamp presentation
 
 `Intake!A` and `Intake!P` remain identical, immutable UTC ISO **text**. Applying a
