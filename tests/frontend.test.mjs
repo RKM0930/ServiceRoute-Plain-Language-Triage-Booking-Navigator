@@ -318,6 +318,7 @@ test("result includes review, labeled native referral dropdown, notice and forma
   assert.match(markup, /<label[^>]+for="referral-select"/);
   assert.match(markup, /<select[^>]+id="referral-select"[^>]+name="referral"/);
   assert.match(markup, /<option value="facebook"/);
+  assert.match(markup, /placeholder="Clare"/);
   assert.doesNotMatch(markup, /type="radio" name="referral"/);
   assert.match(markup, /privacy.html/);
   hooks.editAnswers();

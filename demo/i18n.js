@@ -80,7 +80,6 @@
     "Ipadala ang inquiry": "Submit inquiry",
     "Inquiry pa lamang ito. Hindi pa naka-book ang appointment.": "This is an inquiry only. Your appointment is not yet booked.",
     "Palayaw o Preferred Name": "Nickname or preferred name",
-    "Hal. Kielle": "e.g., Kielle",
     "Puwedeng walang pangalan. Aayusin ang maliliit na titik sa unang pag-alis sa field; maaari mo itong baguhin.": "You may leave this blank. Simple lowercase names are capitalized on first blur; you can edit the result.",
     "Philippine mobile number o email address": "Philippine mobile number or email address",
     "0917-123-4567 o email": "0917-123-4567 or email",
