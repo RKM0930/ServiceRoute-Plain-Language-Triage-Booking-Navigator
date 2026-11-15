@@ -2,14 +2,6 @@
 "use strict";
 (() => {
   const en = {
-    "ServiceRoute — Demonstrasyon": "ServiceRoute — Demonstration",
-    "Demo Mode": "Demo Mode",
-    "Demonstrasyon lamang — walang ipinapadala o sine-save na sagot. Hindi ito booking o clinical assessment.": "Demonstration only — answers are not submitted or saved. This is not a booking or clinical assessment.",
-    "Sinusubukan mo ang demonstrasyon ng ServiceRoute. Hindi ipinapadala o sine-save ang iyong mga sagot. Sa aktuwal na app, susuriin muna ng clinic ang inquiry bago kumpirmahin ang appointment.": "You're exploring a demonstration of ServiceRoute. Your answers are not submitted or saved. In the actual application, the clinic would review your inquiry before confirming an appointment.",
-    "Magsimula muli": "Start Again",
-    "Magpatuloy sa demonstrasyon": "Continue exploring",
-    "Mga halimbawang pagpili para sa pag-aaral lamang. Huwag gumamit ng tunay na personal na detalye.": "Example choices for learning only. Do not use real personal details.",
-    "Walang garantisadong same-day slot sa Kahilom. Ang demonstrasyong ito ay hindi emergency service. Kung kailangan mo ng agarang suporta, tumawag sa NCMH Crisis Hotline.": "Kahilom cannot guarantee a same-day slot. This demonstration is not an emergency service. For immediate support, call the NCMH Crisis Hotline.",
     "Natanggap ang inquiry": "Inquiry Confirmed",
     "Hindi tinanggap ang inquiry": "Submission Failed",
     "Hindi pa beripikado ang inquiry": "Submission Unverified",

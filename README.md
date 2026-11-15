@@ -22,25 +22,32 @@ The optional build copies the five browser assets to `public/`. It does not
 deploy Apps Script. Publish `index.html`, `style.css`, `app.js`, `i18n.js`, and
 `privacy.html` through your existing host.
 
-## Public classroom demo
+## Public application on GitHub Pages
 
-The separate `docs/` site is an endpoint-free demonstration, not the production
-clinic app. It includes all four questions, recommendations, Filipino/English,
-emergency reminders, back navigation and restart. It never asks for personal
-details, submits inquiries, checks receipts, or persists answers.
+https://rkm0930.github.io/ServiceRoute-Plain-Language-Triage-Booking-Navigator/
 
-GitHub Pages publishes **main → /docs**. Only static demo assets are published;
-root production files and `Code.gs` must never be copied into this folder.
-The demo's CSP blocks network connections and form submissions. GitHub still
-receives ordinary page/asset requests; answers are never included in those URLs.
+GitHub Pages publishes **main → /docs**. This is the **full application**, including
+the real inquiry form, consent, production submission and receipt verification.
+The owner explicitly authorized replacing the former demo with the live frontend.
+An inquiry receipt is not an appointment confirmation.
 
-Rebuild after changing questionnaire presentation: `npm run build:demo`.
-This reuses only static question/service data, the pure matching function, local
-translations and CSS; production transport code is not included.
+Run `npm run build:pages` after frontend changes, then commit and push `docs/`.
+It copies only `index.html`, `style.css`, `app.js`, `i18n.js`, and `privacy.html`,
+plus `.nojekyll`. Never publish `Code.gs`, reports or spreadsheet records.
+Root production source and the existing Apps Script deployment remain unchanged.
+
 Run `npm test` and, with the documented external browser tools,
-`npm run test:demo`. Set `DEMO_URL` to the Pages URL to run the same browser
-checks against the deployed demo. Tests block and report unexpected outbound
-requests, check all 54 routes, both languages, five widths, and accessibility.
+`npm run test:browser`. Set `SERVICEROUTE_URL` to the Pages URL for public-site QA.
+Google POSTs and receipt requests are intercepted with local fixtures even when
+testing the public site; no synthetic records are sent to the clinic.
+The receiver's read-only health endpoint can be checked separately; it does not
+prove live spreadsheet write permissions.
+
+The former endpoint-free demo remains in `demo/` for optional offline use.
+`npm run build:demo` and `npm run test:demo` operate on that folder, not `docs/`;
+the demo is no longer served at the public Pages URL.
+The existing privacy notice retains unresolved clinic privacy-contact,
+retention and access-control requirements; publication is not a compliance claim.
 
 ## Philippine timestamp presentation
 

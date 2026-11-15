@@ -32,7 +32,8 @@ const server = http.createServer(async (request, response) => {
   } catch { response.writeHead(404).end(); }
 });
 await new Promise((done) => server.listen(0, "127.0.0.1", done));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const origin = process.env.SERVICEROUTE_URL?.replace(/\/$/, "") || `http://127.0.0.1:${server.address().port}`;
+report.url = origin;
 let browser;
 try {
   browser = await chromium.launch();
@@ -44,6 +45,9 @@ try {
     return route.request().url().startsWith(origin) ? route.continue() : route.abort();
   });
   const page = await context.newPage();
+  // Public-site QA still intercepts all Google traffic below; no production writes.
+  await page.route(origin + "/__test/axe.js", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: axeSource }));
   page.on("pageerror", (error) => report.errors.push(error.message));
   const backend = createReceiver();
   let mode = "success";

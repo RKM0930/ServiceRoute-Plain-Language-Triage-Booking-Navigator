@@ -44,12 +44,12 @@ const runtime = `"use strict";\n(() => {\n${data}\n${routing.replace("answers = 
 for (const content of [html, catalog, runtime]) {
   if (/script\.google|googleusercontent|SPREADSHEET_ID|19zT6nog|AKfycb/.test(content)) throw new Error("Production identifier in demo");
 }
-await mkdir("docs", { recursive: true });
+await mkdir("demo", { recursive: true });
 await Promise.all([
-  writeFile("docs/index.html", html),
-  writeFile("docs/i18n.js", catalog),
-  writeFile("docs/demo.js", runtime),
-  writeFile("docs/.nojekyll", ""),
-  copyFile("style.css", "docs/style.css")
+  writeFile("demo/index.html", html),
+  writeFile("demo/i18n.js", catalog),
+  writeFile("demo/demo.js", runtime),
+  writeFile("demo/.nojekyll", ""),
+  copyFile("style.css", "demo/style.css")
 ]);
 console.log(`Built isolated demo: ${model.STEPS.length - 1} steps, ${Object.keys(model.SERVICES).length} services.`);

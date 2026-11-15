@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fil">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; form-action 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FBFBF9">
+  <meta name="description" content="ServiceRoute — Demonstrasyon">
+  <title>ServiceRoute — Demonstrasyon</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233F5E4D'/%3E%3Cpath d='M16 43c9 1.5 10-19 19-19 6 0 7 9 13 9' fill='none' stroke='%23FAF8F5' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='43' r='4' fill='%23E7C79B'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#app-main">Pumunta sa mga tanong</a>
+
+  <div class="app-frame">
+    <aside class="emergency-banner" aria-label="Paalala para sa emergency">
+      <span class="emergency-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" focusable="false">
+          <path d="M12 8.25v4.5M12 16.5h.01M10.3 4.4 2.9 17.2A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.8L13.7 4.4a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <p>
+        <strong>Paalala:</strong> By appointment ang Kahilom, hindi emergency facility. Para sa agarang suporta, tumawag sa 24/7 NCMH Crisis Hotline: <a href="tel:1553">1553</a> (toll-free) o <a href="tel:+639178998727">0917&#8209;899&#8209;8727</a>.
+      </p>
+    </aside>
+
+    <header class="app-header">
+      <h1 class="header-line">ServiceRoute — Demonstrasyon</h1>
+      <div class="language-selector" role="group" aria-label="Wika" hidden>
+        <button type="button" data-language="fil" lang="fil" aria-pressed="true">Filipino</button>
+        <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+      </div>
+    </header>
+
+    <main id="app-main" class="app-main" tabindex="-1">
+      <aside class="service-card" aria-labelledby="demo-title">
+        <h2 id="demo-title">Demo Mode</h2>
+        <p>Demonstrasyon lamang — walang ipinapadala o sine-save na sagot. Hindi ito booking o clinical assessment.</p>
+        <p>Mga halimbawang pagpili para sa pag-aaral lamang. Huwag gumamit ng tunay na personal na detalye.</p>
+      </aside>
+      <section class="progress-card" aria-label="Mga hakbang sa intake">
+        <p class="field-hint" id="progress-label">Hakbang 1 sa 4</p>
+        <div id="progress-track" class="progress-track" role="progressbar" aria-label="Mga hakbang sa intake" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25" aria-valuetext="Hakbang 1 sa 4">
+          <span id="progress-fill" class="progress-fill"></span>
+        </div>
+      </section>
+
+      <div id="step-root" class="step-root"></div>
+      <p id="submission-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+
+      <noscript>
+        <div class="noscript-card">
+          <h2>Kailangan ng JavaScript para sa mga tanong</h2>
+          <p>JavaScript is required to explore this demo. Walang ipinapadalang inquiry.</p>
+        </div>
+      </noscript>
+    </main>
+
+    <footer class="site-footer"><p>Demonstrasyon lamang — walang ipinapadala o sine-save na sagot. Hindi ito booking o clinical assessment.</p></footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="crisis-modal" class="crisis-modal" aria-labelledby="crisis-title" aria-describedby="crisis-description">
+    <div class="modal-top">
+      <span class="modal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" focusable="false">
+          <path d="M12 20.25s-7.5-4.4-7.5-10A4.5 4.5 0 0 1 12 7.2a4.5 4.5 0 0 1 7.5 3.05c0 5.6-7.5 10-7.5 10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M8.25 11.5h2.1l1.1-2.2 1.35 4.1 1.05-1.9h1.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <button type="button" class="modal-close" data-close-modal aria-label="Isara at bumalik sa pagpili ng schedule">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="m6.5 6.5 11 11m0-11-11 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <p class="modal-kicker">Paalala para sa agarang suporta</p>
+    <div class="language-selector" role="group" aria-label="Wika" hidden>
+      <button type="button" data-language="fil" lang="fil" aria-pressed="true">Filipino</button>
+      <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+    </div>
+    <h2 id="crisis-title">Kailangan ng agarang tulong?</h2>
+    <p id="crisis-description">Walang garantisadong same-day slot sa Kahilom. Ang demonstrasyong ito ay hindi emergency service. Kung kailangan mo ng agarang suporta, tumawag sa NCMH Crisis Hotline.</p>
+
+    <div class="hotline-card">
+      <span class="hotline-label">24/7 NCMH Crisis Hotline</span>
+      <strong>1553 <span>&middot; Toll-Free</span></strong>
+      <a href="tel:+639178998727">0917&#8209;899&#8209;8727</a>
+    </div>
+
+    <div class="modal-actions">
+      <a class="button button-primary" href="tel:1553">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M7.1 3.8 9.6 7a1.5 1.5 0 0 1-.1 2l-1.4 1.3a14.3 14.3 0 0 0 5.6 5.6l1.3-1.4a1.5 1.5 0 0 1 2-.1l3.2 2.5a1.5 1.5 0 0 1 .2 2.2l-1.3 1.4c-1 1-2.4 1.4-3.7 1.1C9.8 20 6 16.2 4.4 9.6c-.3-1.3.1-2.7 1.1-3.7L6.9 4a1.5 1.5 0 0 1 2.1 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Tumawag sa NCMH (1553)
+      </a>
+      <button type="button" class="button button-secondary" data-crisis-proceed>
+        Magpatuloy sa demonstrasyon
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+    <p class="modal-footnote">Kung nasa agarang panganib, tumawag sa lokal na emergency services.</p>
+  </dialog>
+
+  <script src="i18n.js" defer></script>
+  <script src="demo.js" defer></script>
+</body>
+</html>

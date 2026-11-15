@@ -1,5 +1,24 @@
 # Deployment verification and remaining owner steps
 
+## GitHub Pages full-application publication
+
+The owner explicitly authorized replacing the demo with the full production
+frontend at:
+https://rkm0930.github.io/ServiceRoute-Plain-Language-Triage-Booking-Navigator/
+
+Pages remains configured as **Deploy from a branch → main → /docs**, with HTTPS
+enforced. `npm run build:pages` copies the five root browser assets into `docs/`;
+commit/push those generated assets to publish updates. The optional demo moved
+to `demo/`, outside the publication folder. No backend or spreadsheet is deployed
+by this operation.
+
+The existing receiver's read-only health check was verified to advertise
+`serviceroute-receipt-v1`, receipt lookup, normalization `v2`, and privacy version
+`2026-11-15.1`. Public-site regression tests use `SERVICEROUTE_URL` with every
+Google submission/receipt request mocked; they never insert production records.
+Live end-to-end storage permissions remain unverified without a real authorized
+inquiry. Keep the privacy notice's unresolved operational requirements visible.
+
 ## Observed state
 
 - Repository baseline: `2e72226`; fetched remote matched that baseline before edits.

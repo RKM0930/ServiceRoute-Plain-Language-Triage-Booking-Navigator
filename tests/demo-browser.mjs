@@ -14,7 +14,7 @@ const server = http.createServer(async (req, res) => {
     if (!path.startsWith(prefix) || !["index.html", "demo.js", "i18n.js", "style.css"].includes(file)) {
       res.writeHead(404).end(); return;
     }
-    const body = await readFile(resolve("docs", file));
+    const body = await readFile(resolve("demo", file));
     res.setHeader("Content-Type", file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : "text/html");
     res.end(body);
   } catch { res.writeHead(404).end(); }

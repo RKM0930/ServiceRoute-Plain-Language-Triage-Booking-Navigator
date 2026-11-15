@@ -2,12 +2,15 @@
 <html lang="fil">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; form-action 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
-  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#FBFBF9">
-  <meta name="description" content="ServiceRoute — Demonstrasyon">
-  <title>ServiceRoute — Demonstrasyon</title>
+  <meta name="description" content="Gabay sa pagpili ng serbisyong itatanong at pagpapadala ng appointment inquiry sa Kahilom Psychological Services.">
+  <title>ServiceRoute | Kahilom Psychological Services</title>
+  <!-- Social Media Link Previews (Open Graph) -->
+  <meta property="og:title" content="Kahilom ServiceRoute — Gabay sa serbisyo">
+  <meta property="og:description" content="Alamin ang mungkahing serbisyo at magpadala ng inquiry sa Kahilom. Hindi ito clinical assessment o kumpirmadong appointment.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233F5E4D'/%3E%3Cpath d='M16 43c9 1.5 10-19 19-19 6 0 7 9 13 9' fill='none' stroke='%23FAF8F5' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='43' r='4' fill='%23E7C79B'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -27,7 +30,10 @@
     </aside>
 
     <header class="app-header">
-      <h1 class="header-line">ServiceRoute — Demonstrasyon</h1>
+      <h1 class="header-line">
+        Kahilom
+        <span style="color:#6B726E; font-weight:400;">&middot; ServiceRoute</span>
+      </h1>
       <div class="language-selector" role="group" aria-label="Wika" hidden>
         <button type="button" data-language="fil" lang="fil" aria-pressed="true">Filipino</button>
         <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
@@ -35,11 +41,6 @@
     </header>
 
     <main id="app-main" class="app-main" tabindex="-1">
-      <aside class="service-card" aria-labelledby="demo-title">
-        <h2 id="demo-title">Demo Mode</h2>
-        <p>Demonstrasyon lamang — walang ipinapadala o sine-save na sagot. Hindi ito booking o clinical assessment.</p>
-        <p>Mga halimbawang pagpili para sa pag-aaral lamang. Huwag gumamit ng tunay na personal na detalye.</p>
-      </aside>
       <section class="progress-card" aria-label="Mga hakbang sa intake">
         <p class="field-hint" id="progress-label">Hakbang 1 sa 4</p>
         <div id="progress-track" class="progress-track" role="progressbar" aria-label="Mga hakbang sa intake" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25" aria-valuetext="Hakbang 1 sa 4">
@@ -53,12 +54,22 @@
       <noscript>
         <div class="noscript-card">
           <h2>Kailangan ng JavaScript para sa mga tanong</h2>
-          <p>JavaScript is required to explore this demo. Walang ipinapadalang inquiry.</p>
+          <p>I-enable ang JavaScript, o direktang makipag-ugnayan sa Kahilom Psychological Services sa kanilang beripikadong contact channel.</p>
         </div>
       </noscript>
     </main>
 
-    <footer class="site-footer"><p>Demonstrasyon lamang — walang ipinapadala o sine-save na sagot. Hindi ito booking o clinical assessment.</p></footer>
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M5 19c0-6 3.8-11 11.5-12.5C16.8 13.3 13.2 17.4 5 19Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M5 19c2.5-4.3 5.8-7.4 10.2-9.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span>Kahilom Psychological Services</span>
+      </div>
+      <p>Para sa pag-aayos ng inquiry lamang. Walang diagnosis o emergency care dito.</p>
+      <p class="footer-privacy"><a href="privacy.html">Privacy notice</a> &middot; Gabay sa RA 10173</p>
+    </footer>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
@@ -83,7 +94,7 @@
       <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
     </div>
     <h2 id="crisis-title">Kailangan ng agarang tulong?</h2>
-    <p id="crisis-description">Walang garantisadong same-day slot sa Kahilom. Ang demonstrasyong ito ay hindi emergency service. Kung kailangan mo ng agarang suporta, tumawag sa NCMH Crisis Hotline.</p>
+    <p id="crisis-description">Walang garantisadong same-day slot sa Kahilom. Ang inquiry na ito ay hindi emergency service. Kung kailangan mo ng agarang suporta, tumawag sa NCMH Crisis Hotline.</p>
 
     <div class="hotline-card">
       <span class="hotline-label">24/7 NCMH Crisis Hotline</span>
@@ -99,7 +110,7 @@
         Tumawag sa NCMH (1553)
       </a>
       <button type="button" class="button button-secondary" data-crisis-proceed>
-        Magpatuloy sa demonstrasyon
+        Magpatuloy sa inquiry
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
           <path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -109,6 +120,6 @@
   </dialog>
 
   <script src="i18n.js" defer></script>
-  <script src="demo.js" defer></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
