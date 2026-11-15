@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { randomUUID } from "node:crypto";
 import { createReceiver } from "./support/receiver.mjs";
+import { validContacts, invalidContacts, names } from "./support/normalization-cases.mjs";
 
 // Lightweight DOM double: tests state transitions and rendered markup, not layout.
 function app(fetchImpl = async () => { throw new Error("offline"); },
@@ -22,7 +23,7 @@ function app(fetchImpl = async () => { throw new Error("offline"); },
       removeAttribute(key) { attributes.delete(key); },
       addEventListener() {}, insertAdjacentElement() {},
       querySelectorAll() { return []; }, closest() { return null; },
-      focus() {}, scrollIntoView() {},
+      focus() { this.focused = true; }, scrollIntoView() {},
       remove() { this.removed = true; },
       showModal() { this.open = true; }, close() { this.open = false; },
       matches(selector) { return selector === `#${id}`; },
@@ -78,7 +79,8 @@ function app(fetchImpl = async () => { throw new Error("offline"); },
   source = source.replace("  init();", `  globalThis.hooks = {
     state, getRecommendation, isValidContact, advanceFromStep, goBack,
     showResult, editAnswers, resetIntake, handleInquirySubmit, postInquiry,
-    handleOptionChange, buildCopySummary, renderResult, lookupReceipt
+    handleOptionChange, buildCopySummary, renderResult, lookupReceipt,
+    normalizeContact, normalizePreferredName, handleFieldBlur, handleContactInput
   }; init();`);
   const context = vm.createContext({
     document, window, console, crypto: { randomUUID }, AbortController,
@@ -137,6 +139,148 @@ test("contact validation accepts email/phone and rejects invalid contacts", () =
   }
 });
 
+test("quoted fee values remain unchanged and are presented as subject to clinic confirmation", () => {
+  const hooks = app();
+  for (const [answers, fee] of [
+    [{ goal: "clearance" }, "₱3,500 – ₱5,000"],
+    [{ goal: "assessment" }, "Custom assessment rates"],
+    [{ goal: "counseling", client: "couple_family" }, "₱2,000 – ₱2,800"],
+    [{ goal: "counseling", client: "adult" }, "₱1,200 – ₱1,800"]
+  ]) assert.equal(hooks.getRecommendation(answers).fee, fee);
+  fill(hooks);
+  const markup = hooks.nodes.get("step-root").innerHTML;
+  assert.match(markup, /Tinatayang singil/);
+  assert.match(markup, /Kumpirmahin ang kasalukuyang presyo/);
+  assert.doesNotMatch(markup, /50-minute|75-to-90|licensed relationship/);
+});
+
+test("mirrored pure normalization implementations remain identical", () => {
+  const frontend = app();
+  const backend = createReceiver();
+  for (const key of ["normalizeContact", "normalizePreferredName"]) {
+    assert.equal(frontend[key].toString().replace(/\s+/g, " "), backend.context[key].toString().replace(/\s+/g, " "));
+  }
+});
+
+for (const [input, canonical] of validContacts) {
+  test(`contact normalization parity: ${JSON.stringify(input)}`, () => {
+    const frontend = app();
+    const backend = createReceiver();
+    assert.equal(frontend.normalizeContact(input), canonical);
+    assert.equal(backend.context.normalizeContact(input), canonical);
+    assert.equal(frontend.normalizeContact(canonical), canonical);
+  });
+}
+
+for (const input of invalidContacts) {
+  test(`frontend/backend both reject: ${JSON.stringify(input)}`, () => {
+    const frontend = app();
+    const backend = createReceiver();
+    assert.equal(frontend.normalizeContact(input), null);
+    assert.equal(backend.context.normalizeContact(input), null);
+  });
+}
+
+for (const [input, expected] of names) {
+  test(`name normalization parity: ${JSON.stringify(input)}`, () => {
+    const frontend = app();
+    const backend = createReceiver();
+    assert.equal(frontend.normalizePreferredName(input), expected);
+    assert.equal(backend.context.normalizePreferredName(input), expected);
+  });
+}
+
+test("every malformed contact is blocked before transport with associated focused errors", async () => {
+  let calls = 0;
+  const hooks = app(async () => { calls++; });
+  fill(hooks);
+  for (const value of invalidContacts) {
+    const input = hooks.nodes.get("contact-input");
+    input.value = value;
+    await submit(hooks);
+    assert.equal(input.getAttribute("aria-invalid"), "true");
+    assert.equal(input.focused, true);
+    assert.equal(hooks.nodes.get("contact-error").hidden, false);
+  }
+  assert.equal(calls, 0);
+  const input = hooks.nodes.get("contact-input");
+  input.value = "still wrong";
+  hooks.handleContactInput({ target: input });
+  assert.equal(input.getAttribute("aria-invalid"), "true");
+  input.value = "0917-123-4567";
+  hooks.handleContactInput({ target: input });
+  assert.equal(input.getAttribute("aria-invalid"), "false");
+  assert.equal(hooks.nodes.get("contact-error").hidden, true);
+});
+
+test("name formatting occurs at blur, once by default, and preserves manual lowercase corrections", () => {
+  const hooks = app();
+  fill(hooks);
+  const input = hooks.nodes.get("preferred-name-input");
+  input.value = "  juan   dela cruz ";
+  hooks.handleFieldBlur({ target: input });
+  assert.equal(input.value, "Juan Dela Cruz");
+  assert.equal(hooks.state.preferredName, input.value);
+  input.value = "de la cruz";
+  hooks.handleFieldBlur({ target: input });
+  assert.equal(input.value, "de la cruz");
+  assert.equal(hooks.state.nameDefaultApplied, true);
+  hooks.resetIntake();
+  assert.equal(hooks.state.nameDefaultApplied, false);
+});
+
+test("valid contact is formatted at blur and an existing required error is not hidden by clearing it", async () => {
+  const hooks = app();
+  fill(hooks);
+  const input = hooks.nodes.get("contact-input");
+  input.value = "+63 917 123 4567";
+  hooks.handleFieldBlur({ target: input });
+  assert.equal(input.value, "0917-123-4567");
+  input.value = "bad";
+  await submit(hooks);
+  input.value = "";
+  hooks.handleFieldBlur({ target: input });
+  assert.equal(input.getAttribute("aria-invalid"), "true");
+});
+
+test("canonical payload is finalized once, frozen, and unchanged across retries", async () => {
+  const requests = [];
+  const hooks = app(async (_, options) => {
+    requests.push(JSON.parse(options.body));
+    return { type: "opaque" };
+  });
+  fill(hooks);
+  hooks.nodes.get("contact-input").value = "+639171234567";
+  hooks.nodes.get("preferred-name-input").value = "juan dela cruz";
+  await submit(hooks);
+  assert.equal(hooks.state.payload.contact, "0917-123-4567");
+  assert.equal(hooks.state.payload.preferred_name, "Juan Dela Cruz");
+  assert.equal(hooks.state.payload.name_case, "preserve");
+  assert.equal(Object.isFrozen(hooks.state.payload), true);
+  assert.throws(() => { hooks.state.payload.contact = "changed"; }, TypeError);
+  hooks.renderResult();
+  hooks.nodes.get("preferred-name-input").value = "Different";
+  await submit(hooks);
+  const withoutAttempt = ({ attempt_id, ...data }) => data;
+  assert.deepEqual(withoutAttempt(requests[0]), withoutAttempt(requests[1]));
+});
+
+test("anonymous name remains optional and manual capitalization reaches the receiver unchanged", async () => {
+  for (const desired of ["", "de la cruz", "McDonald"]) {
+    const receiver = createReceiver();
+    const hooks = app(async (_, options) => {
+      receiver.send(JSON.parse(options.body));
+      return { type: "opaque" };
+    }, (url) => ({ javascript: receiver.get(Object.fromEntries(url.searchParams)).body }));
+    fill(hooks);
+    hooks.state.nameDefaultApplied = true;
+    hooks.nodes.get("preferred-name-input").value = desired;
+    await submit(hooks);
+    assert.equal(receiver.rows[3][1], desired || "Anonymous");
+    assert.equal(hooks.state.submitted, true);
+  }
+});
+
 test("unanswered steps cannot advance; back preserves answers", () => {
   const hooks = app();
   hooks.advanceFromStep();
@@ -167,7 +311,8 @@ test("result includes review, native referral radios, notice and format warnings
   const hooks = app();
   fill(hooks, { goal: "clearance" });
   const markup = hooks.nodes.get("step-root").innerHTML;
-  assert.match(markup, /requires in-person testing/);
+  assert.match(markup, /kailangang gawin nang personal/);
+  assert.match(markup, /Kumpirmahin ang kasalukuyang presyo/);
   assert.match(markup, /data-action="edit-answers"/);
   assert.match(markup, /name="referral"/);
   assert.match(markup, /privacy.html/);
@@ -196,7 +341,7 @@ test("opaque POST alone stays Unverified and receipt requests contain no contact
     assert.equal(options.credentials, "omit");
     const data = JSON.parse(options.body);
     assert.equal(data.consent, true);
-    assert.equal(data.privacy_version, "2026-11-15");
+    assert.equal(data.privacy_version, "2026-11-15.1");
     assert.ok(Number.isFinite(Date.parse(data.timestamp)));
     assert.equal("receiver_secret" in data, false);
     return { type: "opaque", status: 0, json() { throw new Error("Opaque body must not be read"); } };
@@ -211,7 +356,7 @@ test("opaque POST alone stays Unverified and receipt requests contain no contact
   assert.equal(hooks.state.submitted, false);
   assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Submission Unverified/);
   assert.doesNotMatch(hooks.nodes.get("inquiry-mount").innerHTML, /Your inquiry was saved|Inquiry Received/);
-  assert.match(hooks.buildCopySummary(), /Delivery: unverified/);
+  assert.match(hooks.buildCopySummary(), /Katayuan: unverified/);
 });
 
 test("network failure stays Unverified; retry preserves submission data with a new attempt ID", async () => {
@@ -234,7 +379,7 @@ test("network failure stays Unverified; retry preserves submission data with a n
   const withoutAttempt = ({ attempt_id, ...data }) => data;
   assert.deepEqual(withoutAttempt(requests[0]), withoutAttempt(requests[1]));
   assert.equal(hooks.state.submitted, false);
-  assert.match(hooks.buildCopySummary(), /Delivery: unverified/);
+  assert.match(hooks.buildCopySummary(), /Katayuan: unverified/);
 });
 
 test("opaque server errors cannot be distinguished from accepted requests", async () => {
@@ -243,7 +388,7 @@ test("opaque server errors cannot be distinguished from accepted requests", asyn
   fill(hooks);
   await submit(hooks);
   assert.equal(hooks.state.submitted, false);
-  assert.match(hooks.buildCopySummary(), /Delivery: unverified/);
+  assert.match(hooks.buildCopySummary(), /Katayuan: unverified/);
 });
 
 test("in-flight double submit sends only once", async () => {
@@ -271,7 +416,7 @@ test("authoritative receipt confirms storage even when the POST response is lost
   assert.equal(hooks.state.submitted, true);
   assert.equal(hooks.state.deliveryMode, "confirmed");
   assert.match(hooks.nodes.get("inquiry-mount").innerHTML, /Inquiry Confirmed/);
-  assert.match(hooks.buildCopySummary(), /Server received at: 2026-11-15T12:00:00.000Z/);
+  assert.match(hooks.buildCopySummary(), /Natanggap ng server: 2026-11-15T12:00:00.000Z/);
 });
 
 test("server-rejected requests show Failed, not Unverified or Confirmed", async () => {

@@ -1,5 +1,6 @@
-/** ServiceRoute receiver. Never creates a worksheet or edits historical rows. */
-const PRIVACY_VERSION = "2026-11-15";
+/** ServiceRoute receiver. Never creates a worksheet or rewrites historical business fields. */
+const PRIVACY_VERSION = "2026-11-15.1";
+const SUPPORTED_PRIVACY_VERSIONS = ["2026-11-15", PRIVACY_VERSION];
 const SPREADSHEET_ID = "19zT6nogw6NIJq-lYtMEJgJz1J4MPMUzlbFg3RPmRkvw";
 const SHEET_NAME = "Intake";
 const LEDGER_HEADERS = [
@@ -16,7 +17,49 @@ function output(value) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function validateInquiry(data) {
+// Keep these pure rules identical to app.js; parity is regression-tested.
+function normalizeContact(value) {
+  if (typeof value !== "string") return null;
+  const contact = value.trim();
+  if (!contact || contact.length > 254) return null;
+  if (contact.includes("@")) {
+    const parts = contact.split("@");
+    if (parts.length !== 2) return null;
+    const [local, domain] = parts;
+    if (!local || local.length > 64 || !/^[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+$/u.test(local) ||
+        local.startsWith(".") || local.endsWith(".") || local.includes("..")) return null;
+    const labels = domain.split(".");
+    if (labels.length < 2 || labels.some((label) =>
+      !/^[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u.test(label)) ||
+      labels[labels.length - 1].length < 2 || !/\p{L}/u.test(labels[labels.length - 1])) return null;
+    return local + "@" + domain.toLowerCase();
+  }
+  let digits;
+  if (/^09\d{9}$/.test(contact)) digits = contact;
+  else if (/^(?:\+63|63)9\d{9}$/.test(contact)) digits = "0" + contact.replace(/^\+?63/, "");
+  else if (/^09\d{2}([ -])\d{3}\1\d{4}$/.test(contact)) digits = contact.replace(/[ -]/g, "");
+  else if (/^(?:\+63|63)([ -])9\d{2}\1\d{3}\1\d{4}$/.test(contact)) {
+    digits = "0" + contact.replace(/^\+?63/, "").replace(/[ -]/g, "");
+  } else return null;
+  return digits.slice(0, 4) + "-" + digits.slice(4, 7) + "-" + digits.slice(7);
+}
+
+function normalizePreferredName(value, preserveCase = false) {
+  const name = String(value ?? "").trim().replace(/\s+/gu, " ");
+  if (preserveCase || name !== name.toLowerCase()) return name;
+  const formatted = name.replace(/(^|[\s'’\-‐‑])(\p{L})/gu, (_, boundary, letter) => boundary + letter.toUpperCase());
+  return formatted.length <= 80 ? formatted : name;
+}
+
+function canonicalInquiry(data) {
+  return {
+    ...data,
+    contact: normalizeContact(data.contact),
+    preferred_name: normalizePreferredName(data.preferred_name, data.name_case === "preserve") || "Anonymous"
+  };
+}
+
+function validateInquiry(data, legacyRetry = false) {
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid inquiry");
   const text = (key, max, required) => {
     if (typeof data[key] !== "string" || data[key].length > max ||
@@ -39,13 +82,11 @@ function validateInquiry(data) {
   Object.keys(enums).forEach((key) => {
     if (!enums[key].includes(data[key])) throw new Error("Invalid " + key);
   });
-  const contact = data.contact.trim();
-  const email = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(contact);
-  const digits = contact.replace(/\D/g, "").length;
-  if (!email && !(/^\+?[\d\s().-]+$/.test(contact) && digits >= 7 && digits <= 15)) {
-    throw new Error("Invalid contact");
-  }
-  if (data.consent !== true || data.privacy_version !== PRIVACY_VERSION || data.website !== "") {
+  // Only a matching, already-stored legacy fingerprint can bypass the new format
+  // rule. No new row ever uses this exemption.
+  if (!legacyRetry && !normalizeContact(data.contact)) throw new Error("Invalid contact");
+  if (data.name_case !== undefined && !["auto", "preserve"].includes(data.name_case)) throw new Error("Invalid name policy");
+  if (data.consent !== true || !SUPPORTED_PRIVACY_VERSIONS.includes(data.privacy_version) || data.website !== "") {
     throw new Error("Consent or bot check failed");
   }
 }
@@ -117,9 +158,9 @@ function receipt(id, status, timestamp) {
 
 function validStoredReceipt(row) {
   return row && receiptAttempts(row).length > 0 && row[13] === "true" && row[14] && row[15] === row[0] &&
-    /^[A-Za-z0-9_-]{43}=?$/.test(row[16]) &&
+    /^(?:v2:)?[A-Za-z0-9_-]{43}=?$/.test(row[16]) &&
     typeof row[0] === "string" && Number.isFinite(Date.parse(row[0])) &&
-    row[16] === fingerprint({
+    row[16] === (row[16].startsWith("v2:") ? "v2:" : "") + fingerprint({
       inquiry_id: row[12], preferred_name: row[1], client_type: row[2], goal: row[3],
       format: row[4], schedule: row[5], schedule_notes: row[6], contact: row[8],
       referral: row[9], consent: true, privacy_version: row[14]
@@ -155,15 +196,22 @@ function doPost(e) {
     if (!e || !e.postData || e.postData.contents.length > 8192) return output({ ok: false });
     data = JSON.parse(e.postData.contents);
     try {
-      validateInquiry(data);
+      validateInquiry(data, true);
     } catch (_) {
       return reject(data, "rejected");
     }
     lock = LockService.getScriptLock();
     if (!lock.tryLock(10000)) return output({ ok: false, code: "busy" });
-    const sheet = ledger(true);
+    const sheet = ledger(false);
     const existing = storedRow(sheet, data.inquiry_id);
-    const hash = fingerprint(data);
+    const legacyRetry = Boolean(existing && typeof existing[16] === "string" && !existing[16].startsWith("v2:"));
+    try {
+      validateInquiry(data, legacyRetry);
+    } catch (_) {
+      return reject(data, "rejected");
+    }
+    const accepted = legacyRetry ? data : canonicalInquiry(data);
+    const hash = (legacyRetry ? "" : "v2:") + fingerprint(accepted);
     if (existing) {
       if (existing[16] !== hash) return reject(data, "id_conflict");
       if (!validStoredReceipt(existing)) throw new Error("Incomplete existing record");
@@ -184,7 +232,7 @@ function doPost(e) {
     // Best-effort quota protection. Cache entries may be evicted by Google.
     const cache = CacheService.getScriptCache();
     const contactHash = Utilities.base64EncodeWebSafe(Utilities.computeDigest(
-      Utilities.DigestAlgorithm.SHA_256, data.contact.trim().toLowerCase()
+      Utilities.DigestAlgorithm.SHA_256, accepted.contact.toLowerCase()
     ));
     const globalKey = "volume:" + Math.floor(Date.now() / 3600000);
     const contactKey = "contact:" + contactHash;
@@ -193,10 +241,11 @@ function doPost(e) {
     cache.put(globalKey, String(count + 1), 3600);
     cache.put(contactKey, "1", 60);
 
+    ledger(true);
     const receivedAt = new Date().toISOString();
     const values = [
-      receivedAt, data.preferred_name, data.client_type, data.goal, data.format,
-      data.schedule, data.schedule_notes, recommend(data), data.contact.trim(), data.referral,
+      receivedAt, accepted.preferred_name, data.client_type, data.goal, data.format,
+      data.schedule, data.schedule_notes, recommend(data), accepted.contact, data.referral,
       "Pending", "", data.inquiry_id, "true", data.privacy_version, receivedAt, hash,
       JSON.stringify([data.attempt_id])
     ];
@@ -217,7 +266,7 @@ function doPost(e) {
 function doGet(e) {
   const params = e && e.parameter || {};
   if (params.action === "health") {
-    return output({ protocol: RECEIPT_PROTOCOL, receipt_lookup: true });
+    return output({ protocol: RECEIPT_PROTOCOL, receipt_lookup: true, normalization: "v2", privacy_version: PRIVACY_VERSION });
   }
   const callback = params.callback || "";
   if (params.action !== "receipt" || !UUID_PATTERN.test(params.id || "") ||
@@ -261,4 +310,44 @@ function inspectIntake() {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Owner-only, read-only supplement to Intake View. No contact data in output/logs. */
+function reviewRecentInquiries(nowMs = Date.now()) {
+  if (!Number.isFinite(nowMs)) throw new Error("Invalid review time");
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) throw new Error("Ledger busy; retry later");
+  let rows;
+  try {
+    const sheet = ledger(false);
+    rows = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues() : [];
+  } finally {
+    lock.releaseLock();
+  }
+  // Work on the snapshot without holding up incoming submissions.
+  const groups = new Map();
+  let unreadableTimestamps = 0;
+  rows.forEach((row, index) => {
+    // Do not guess locale-specific historical date strings.
+    const isDate = Object.prototype.toString.call(row[0]) === "[object Date]";
+    const timestamp = isDate ? row[0].getTime()
+      : /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(String(row[0])) ? Date.parse(row[0]) : NaN;
+    if (!Number.isFinite(timestamp)) { unreadableTimestamps++; return; }
+    if (timestamp > nowMs || nowMs - timestamp > 24 * 60 * 60 * 1000) return;
+    const contact = normalizeContact(String(row[8]));
+    if (!contact) return;
+    const notes = String(row[6]).trim().replace(/\s+/gu, " ");
+    const key = JSON.stringify([
+      contact.toLowerCase(), row[2], row[3], row[4], row[5],
+      notes === "None specified" ? "" : notes
+    ]);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(index + 2);
+  });
+  const result = {
+    review_window_hours: 24,
+    candidate_rows: Array.from(groups.values()).filter((rows) => rows.length > 1),
+    unreadable_timestamps: unreadableTimestamps
+  };
+  return result;
 }

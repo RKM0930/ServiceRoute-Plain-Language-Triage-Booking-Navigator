@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fil">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,27 +8,33 @@
 </head>
 <body>
   <main class="privacy-page">
-    <a href="index.html">Back to ServiceRoute</a>
-    <h1>ServiceRoute privacy notice</h1>
-    <p>Notice version: <time datetime="2026-11-15">2026-11-15</time></p>
-    <h2>Purpose and information collected</h2>
-    <p>Kahilom Psychological Services uses this form for administrative service matching and appointment coordination—not diagnosis, emergency support, or confirmed booking. It collects your routing preferences, contact method, optional nickname, optional scheduling notes, optional referral source, and consent to this notice.</p>
-    <p>Please do not submit symptoms, diagnoses, medical history, or trauma descriptions. Your routing choices may still reveal sensitive information about seeking psychological services.</p>
-    <h2>Where information goes</h2>
-    <p>Form state remains in page memory until submission or until you leave or reload the page. This application does not store contact details in local storage, cookies, or analytics. Your browser may independently retain autofill information.</p>
-    <p>On submission, your browser sends form data directly to Google Apps Script for storage in a clinic-controlled Google Sheet. No separate application server is required. Your website host and Google may process technical request information under their own terms, potentially outside the Philippines.</p>
-    <p>The updated receiver writes to the existing Intake worksheet. It stores an inquiry ID, server receipt time, administrative recommendation, consent status, notice version, coordination status, an internal request fingerprint used for duplicate detection, and up to 64 accepted attempt IDs used for receipt verification. Historical records are not retroactively marked as consented. A retry uses the same inquiry ID; duplicate prevention requires the updated receiver.</p>
-    <p>A separate, read-only receipt check sends only the random submission and attempt IDs to Google. Its response contains only the submission ID, confirmation status, protocol version, and server receipt time when verified. It never returns names, contacts, service preferences, internal fingerprints, or server credentials. Receipt checks use a public endpoint; anyone who already knows both IDs can check their receipt status. Do not post inquiry IDs publicly. Technical request logs may contain these correlation IDs.</p>
-    <p>“Confirmed” means the server found a complete stored inquiry. “Unverified” means storage could not be checked, not that the inquiry was lost. “Failed” means the server rejected that attempt. None of these states confirms an appointment. Inquiry details and retry IDs are kept in page memory only; leaving or reloading clears them.</p>
-    <h2>Access and retention</h2>
-    <p>Submitted information is intended only for authorized clinic personnel coordinating inquiries and appointments, and the providers operating this service. Do not include another person's contact details without their permission. A parent or authorized guardian should coordinate inquiries for minors.</p>
-    <p>This app does not automatically delete spreadsheet records. The clinic must confirm its retention period, restrict staff access, and implement its deletion process before accepting live inquiries. This notice does not claim that those operational safeguards have already been implemented.</p>
-    <h2>Your choices and rights</h2>
-    <p>Submitting is optional. Without a contact method and consent, this form cannot send an inquiry. You can instead contact the clinic through its verified official channels. The emergency hotline is not a clinic booking or privacy contact.</p>
-    <p>To request access, correction, deletion where applicable, or withdrawal of consent for future processing, contact Kahilom Psychological Services through the same verified official channel you use to reach the clinic. Include your inquiry ID, not medical details. Withdrawal does not undo processing already lawfully completed. You may also raise privacy concerns with the Philippine National Privacy Commission.</p>
-    <h2>Before launch</h2>
-    <p>The clinic must publish a verified privacy contact and an approved retention period here before enabling live submissions. Referencing RA 10173 or collecting consent alone does not establish legal compliance.</p>
-    <p>The owner must also confirm staff access controls, deletion of expired records and exports, provider/log retention arrangements, and a verified process for privacy requests and guardian authorization. These operational requirements remain unverified; this repository does not supply or invent the clinic's policies.</p>
+    <a href="index.html">Bumalik sa ServiceRoute</a>
+    <h1>Privacy notice ng ServiceRoute</h1>
+    <p>Bersiyon: 2026-11-15.1 · Na-update noong <time datetime="2026-11-15">15 Nobyembre 2026</time></p>
+    <h2>Layunin at mga detalye</h2>
+    <p>Ginagamit ng Kahilom Psychological Services ang form para magmungkahi ng serbisyong itatanong at mag-ayos ng appointment inquiry. Hindi ito diagnosis, emergency support, o kumpirmadong booking.</p>
+    <p>Kinokolekta ang mga piniling serbisyo at schedule, contact, opsyonal na palayaw, scheduling notes, referral source, at pahintulot sa notice na ito. Huwag maglagay ng sintomas, diagnosis, medical history, o detalye ng trauma. Maaari pa ring maging sensitibo ang impormasyong naghahanap ka ng psychological services.</p>
+    <h2>Pag-aayos ng format at magkaparehong inquiry</h2>
+    <p>Sa bagong inquiry, inaayos ang sobrang espasyo sa pangalan at naglalagay ng paunang capitalization sa simpleng lowercase na pangalan. Maaari mong baguhin ang capitalization bago ipadala. Hindi binabago ang mga pangalan sa lumang records.</p>
+    <p>Ang Philippine mobile number ay sine-save sa format na 0917-123-4567. Sa email, inaalis ang espasyo sa magkabilang dulo at ginagawang lowercase ang domain; pinapanatili ang capitalization bago ang @. Format lang ang sinusuri—hindi nito napapatunayang aktibo o pag-aari mo ang contact.</p>
+    <p>Para sa pansamantalang cooldown at staff review, inihahambing ang magkakatumbas na contact nang hindi isinasaalang-alang ang letter case. Maaaring suriin ng awtorisadong staff ang magkaparehong contact at preferences sa loob ng 24 oras. Hindi ibig sabihin nito na iisang tao o duplicate agad ang inquiry. Walang awtomatikong pag-delete o pag-merge, at walang pampublikong abiso kung may kaparehong contact.</p>
+    <h2>Saan napupunta ang impormasyon</h2>
+    <p>Nasa memory ng pahina ang mga sagot hanggang umalis o mag-reload ka. Hindi inilalagay ng app ang contact sa local storage, cookies, o analytics. Maaaring may sariling autofill ang browser mo.</p>
+    <p>Direktang ipinapadala ng browser ang form sa Google Apps Script at sa clinic-controlled Google Sheet. Walang hiwalay na application server. Maaaring iproseso ng Google at ng website host ang teknikal na request information ayon sa kanilang terms, kabilang ang posibleng pagproseso sa labas ng Pilipinas.</p>
+    <p>Sa Intake worksheet naka-save ang inquiry ID, oras ng pagtanggap ng server, mungkahing serbisyo, consent at notice version, coordination status, internal request fingerprint para sa duplicate checking, at hanggang 64 accepted attempt IDs para sa receipt verification. Hindi nilalagyan ng imbentong consent ang lumang records.</p>
+    <h2>Pagkumpirma ng pagtanggap</h2>
+    <p>Submission ID at attempt ID lang ang ipinapadala sa hiwalay na read-only receipt check. Status, protocol version, submission ID, at server timestamp lang ang ibinabalik. Walang pangalan, contact, service preferences, internal fingerprint, o credentials sa response.</p>
+    <p>Pampubliko ang receipt endpoint; maaaring tingnan ang status ng sinumang may parehong IDs. Huwag ipaskil ang mga ID. Maaaring kasama ang mga ID sa technical request logs. Ang retry ay gumagamit ng parehong inquiry ID para maiwasan ang dagdag na row sa updated receiver.</p>
+    <p><span lang="en">Confirmed</span>: natiyak ang naka-save na inquiry. <span lang="en">Unverified</span>: hindi makumpirma ang storage, hindi ibig sabihing nawala ang inquiry. <span lang="en">Failed</span>: hindi tinanggap ng server ang pagtatangkang iyon. Wala sa mga ito ang nagkukumpirma ng appointment. Mawawala ang in-memory retry details kapag umalis o nag-reload ka.</p>
+    <h2>Access at retention</h2>
+    <p>Para lamang sa awtorisadong clinic staff na nag-aayos ng inquiry at appointment, at sa providers na nagpapatakbo ng serbisyo, ang mga detalye. Huwag gumamit ng contact ng ibang tao nang walang pahintulot. Magulang o awtorisadong guardian ang dapat mag-ayos ng inquiry para sa menor de edad.</p>
+    <p>Walang awtomatikong pag-delete ng spreadsheet records. Kailangang aprubahan ng clinic ang retention period, limitahan ang staff access, at ipatupad ang deletion process. Hindi sinasabi ng notice na ito na naipatupad na ang mga iyon.</p>
+    <h2>Mga pagpipilian at karapatan</h2>
+    <p>Opsyonal ang pagpapadala. Kailangan ng contact at pahintulot para magpadala sa form. Maaari kang direktang makipag-ugnayan sa beripikadong official channel ng clinic. Ang emergency hotline ay hindi booking o privacy contact ng clinic.</p>
+    <p>Para humiling ng access, correction, deletion kung naaangkop, o withdrawal ng pahintulot para sa susunod na processing, makipag-ugnayan sa Kahilom sa kanilang beripikadong official channel. Isama ang inquiry ID, hindi medical details. Hindi binabawi ng withdrawal ang processing na legal nang nagawa. Maaari ring magsangguni sa Philippine National Privacy Commission.</p>
+    <h2>Kailangang kumpirmahin ng clinic bago live use</h2>
+    <p>Kailangan pang ilathala rito ang beripikadong privacy contact at aprubadong retention period. Hindi sapat ang pagbanggit sa RA 10173 o consent checkbox para masabing legal na compliant ang app.</p>
+    <p>Kailangan ding kumpirmahin ng owner ang staff access controls, deletion ng expired records at exports, provider/log retention, privacy-request process, at guardian authorization. Hindi pa nabeberipika ang mga operasyong ito; hindi iniimbento ng repository ang patakaran ng clinic.</p>
   </main>
 </body>
 </html>

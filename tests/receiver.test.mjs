@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createReceiver, inquiry, HEADERS, SHEET_ID } from "./support/receiver.mjs";
+import { validContacts, invalidContacts, names } from "./support/normalization-cases.mjs";
 
 test("maps new submissions onto the existing Intake ledger and preserves both historical records", () => {
   const r = createReceiver();
@@ -14,7 +15,7 @@ test("maps new submissions onto the existing Intake ledger and preserves both hi
   assert.deepEqual(r.rows[0].slice(13), ["consent", "privacy_version", "consent_recorded_at", "Request fingerprint", "Receipt attempts"]);
   const row = r.rows[3];
   assert.equal(row[7], "Individual Counseling / Talk Therapy");
-  assert.equal(row[8], "09171234567");
+  assert.equal(row[8], "0917-123-4567");
   assert.equal(row[10], "Pending");
   assert.equal(row[11], "");
   assert.equal(row[12], result.inquiry_id);
@@ -22,6 +23,158 @@ test("maps new submissions onto the existing Intake ledger and preserves both hi
   assert.equal(row[0], result.received_at);
   assert.equal(r.locked(), false);
   assert.equal(r.openedId(), SHEET_ID);
+});
+
+for (const [contact, canonical] of validContacts) {
+  test(`receiver accepts and stores canonical contact: ${JSON.stringify(contact)}`, () => {
+    const r = createReceiver();
+    const data = inquiry({ contact });
+    assert.equal(r.send(data).status, "confirmed");
+    assert.equal(r.rows[3][8], canonical);
+    assert.equal(r.lookup(data).status, "confirmed");
+    assert.ok(r.rows[3][16].startsWith("v2:"));
+    assert.equal(r.rows[3][16], "v2:" + r.context.fingerprint(r.context.canonicalInquiry(data)));
+  });
+}
+
+for (const contact of invalidContacts) {
+  test(`receiver independently blocks invalid contact: ${JSON.stringify(contact)}`, () => {
+    const r = createReceiver();
+    const before = structuredClone(r.rows);
+    const data = inquiry({ contact });
+    assert.equal(r.send(data).ok, false);
+    assert.equal(r.lookup(data).status, "failed");
+    assert.deepEqual(r.rows, before);
+  });
+}
+
+for (const [name, normalized] of names) {
+  test(`receiver safely stores normalized name: ${JSON.stringify(name)}`, () => {
+    const r = createReceiver();
+    const data = inquiry({ preferred_name: name });
+    assert.equal(r.send(data).status, "confirmed");
+    assert.equal(r.rows[3][1], normalized || "Anonymous");
+    assert.equal(r.lookup(data).status, "confirmed");
+    assert.equal(r.send({ ...data, attempt_id: randomUUID() }).status, "confirmed");
+    assert.equal(r.rows.length, 4);
+  });
+}
+
+test("manual case policy preserves intentional lowercase and mixed-case names", () => {
+  const r = createReceiver();
+  const data = inquiry({ preferred_name: "  de la cruz ", name_case: "preserve" });
+  assert.equal(r.send(data).status, "confirmed");
+  assert.equal(r.rows[3][1], "de la cruz");
+  assert.equal(r.lookup(data).status, "confirmed");
+});
+
+test("new entries reject oversized names and invalid case directives", () => {
+  for (const overrides of [{ preferred_name: "x".repeat(81) }, { name_case: "made-up" }]) {
+    const r = createReceiver();
+    assert.equal(r.send(inquiry(overrides)).ok, false);
+    assert.equal(r.rows.length, 3);
+  }
+});
+
+test("legacy fingerprints, name spelling, contacts, timestamps and staff data survive the upgrade", () => {
+  for (const contact of ["1234567", "0917 123 4567", "User@EXAMPLE.COM", "x..y@example.com"]) {
+    const r = createReceiver();
+    const data = inquiry({ preferred_name: "juan  dela cruz", contact });
+    r.seedLegacy(data);
+    const before = structuredClone(r.rows[3]);
+    assert.equal(r.lookup(data).status, "confirmed");
+    const retry = { ...data, attempt_id: randomUUID() };
+    assert.equal(r.send(retry).status, "confirmed");
+    assert.equal(r.lookup(retry).status, "confirmed");
+    assert.equal(r.lookup(data).status, "confirmed");
+    assert.deepEqual(r.rows[3].slice(0, 17), before.slice(0, 17));
+    assert.equal(r.rows.length, 4);
+    assert.equal(r.rows[3][16].startsWith("v2:"), false);
+    if (!r.context.normalizeContact(contact)) {
+      assert.equal(r.send({ ...data, inquiry_id: randomUUID(), attempt_id: randomUUID() }).ok, false);
+      assert.equal(r.rows.length, 4);
+    }
+  }
+});
+
+test("legacy ID conflicts remain rejected even when new normalization would change the name", () => {
+  const r = createReceiver();
+  const data = inquiry({ preferred_name: "juan dela cruz" });
+  r.seedLegacy(data);
+  const changed = { ...data, preferred_name: "Juan Dela Cruz", attempt_id: randomUUID() };
+  assert.equal(r.send(changed).code, "id_conflict");
+  assert.equal(r.lookup(changed).status, "failed");
+  assert.equal(r.rows[3][1], "juan dela cruz");
+});
+
+test("equivalent phone formats share cooldown keys, without breaking same-ID retries", () => {
+  const r = createReceiver();
+  const original = inquiry({ contact: "09171234567" });
+  r.send(original);
+  for (const contact of ["0917-123-4567", "0917 123 4567", "+639171234567", "+63 917 123 4567", "639171234567"]) {
+    assert.equal(r.send(inquiry({ contact })).code, "rate_limited");
+    assert.equal(r.send({ ...original, attempt_id: randomUUID() }).status, "confirmed");
+  }
+  r.advance(61000);
+  assert.equal(r.send(inquiry({ contact: "+63 917 123 4567" })).status, "confirmed");
+  assert.equal(r.rows.length, 5);
+});
+
+test("email domains canonicalize; local case is preserved but cooldown comparison is case-folded", () => {
+  const r = createReceiver();
+  r.send(inquiry({ contact: "User@EXAMPLE.COM" }));
+  assert.equal(r.rows[3][8], "User@example.com");
+  assert.equal(r.send(inquiry({ contact: "user@example.com" })).code, "rate_limited");
+});
+
+test("shared family contacts, different services and returning clients remain legitimate new inquiries", () => {
+  const r = createReceiver();
+  r.send(inquiry({ preferred_name: "parent" }));
+  r.advance(61000);
+  assert.equal(r.send(inquiry({ client_type: "minor", goal: "assessment", preferred_name: "child" })).status, "confirmed");
+  r.advance(25 * 60 * 60 * 1000);
+  assert.equal(r.send(inquiry({ preferred_name: "parent" })).status, "confirmed");
+  assert.equal(r.rows.length, 6);
+  assert.equal(r.rows[3][10], "Pending");
+  assert.equal(r.rows[4][10], "Pending");
+});
+
+test("same names with different contacts never imply client identity", () => {
+  const r = createReceiver();
+  r.send(inquiry({ preferred_name: "juan" }));
+  assert.equal(r.send(inquiry({ preferred_name: "juan", contact: "different@example.com" })).status, "confirmed");
+  const result = JSON.parse(JSON.stringify(r.context.reviewRecentInquiries(r.now())));
+  assert.deepEqual(result.candidate_rows, []);
+});
+
+test("24-hour staff review compares equivalent contacts/context without changing or exposing records", () => {
+  const r = createReceiver();
+  const data = inquiry({ preferred_name: "juan", contact: "0917 123 4567" });
+  r.seedLegacy(data);
+  r.send(inquiry({ preferred_name: "different name", contact: "+639171234567" }));
+  const before = structuredClone(r.rows);
+  const report = JSON.parse(JSON.stringify(r.context.reviewRecentInquiries(r.now())));
+  assert.deepEqual(report.candidate_rows, [[4, 5]]);
+  assert.equal(report.unreadable_timestamps, 2);
+  assert.deepEqual(r.rows, before);
+  const serialized = JSON.stringify(report);
+  for (const sensitive of ["0917", "juan", "counseling", data.inquiry_id]) assert.equal(serialized.includes(sensitive), false);
+  assert.equal(JSON.parse(r.get({ action: "reviewRecentInquiries" }).body).ok, false);
+  r.advance(25 * 60 * 60 * 1000);
+  assert.deepEqual(JSON.parse(JSON.stringify(r.context.reviewRecentInquiries(r.now()))).candidate_rows, []);
+});
+
+test("staff review does not group different goals, clients, dates or scheduling notes", () => {
+  const r = createReceiver();
+  r.send(inquiry());
+  for (const overrides of [
+    { goal: "assessment" }, { client_type: "minor" }, { format: "f2f" },
+    { schedule: "weekend" }, { schedule_notes: "Friday afternoon" }
+  ]) {
+    r.advance(61000);
+    assert.equal(r.send(inquiry(overrides)).status, "confirmed");
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(r.context.reviewRecentInquiries(r.now()))).candidate_rows, []);
 });
 
 test("UUID retries return the stored receipt without adding rows or changing staff statuses", () => {
@@ -33,6 +186,43 @@ test("UUID retries return the stored receipt without adding rows or changing sta
   const before = structuredClone(r.rows);
   assert.deepEqual(r.send({ ...data, attempt_id: randomUUID() }), first);
   assert.deepEqual(r.rows.map((row) => row.slice(0, 17)), before.map((row) => row.slice(0, 17)));
+});
+
+test("staff review handles actual date cells and blank/default notes without rewriting historical formatting", () => {
+  const r = createReceiver();
+  const legacy = inquiry({ contact: "+639171234567" });
+  r.seedLegacy(legacy);
+  r.rows[3][0] = new Date(r.now() - 1000);
+  r.send(inquiry({ schedule_notes: "None specified" }));
+  const before = structuredClone(r.rows);
+  assert.deepEqual(JSON.parse(JSON.stringify(r.context.reviewRecentInquiries(r.now()))).candidate_rows, [[4, 5]]);
+  assert.deepEqual(r.rows, before);
+});
+
+test("public receipts do not reveal that another submission has the same contact", () => {
+  const r = createReceiver();
+  const first = inquiry();
+  r.send(first);
+  const unrelated = inquiry({ contact: first.contact });
+  const result = r.lookup(unrelated);
+  assert.deepEqual(Object.keys(result).sort(), ["inquiry_id", "protocol", "status"]);
+  assert.equal(result.status, "unverified");
+  r.advance(61000);
+  r.send(unrelated);
+  const confirmed = r.lookup(unrelated);
+  assert.deepEqual(Object.keys(confirmed).sort(), ["inquiry_id", "protocol", "received_at", "status"]);
+  assert.equal(JSON.stringify(confirmed).includes(first.inquiry_id), false);
+});
+
+test("stored canonical values cannot be reformatted in place to bypass their fingerprint", () => {
+  const r = createReceiver();
+  const data = inquiry({ preferred_name: "juan" });
+  r.send(data);
+  r.rows[3][8] = "+639171234567";
+  assert.equal(r.lookup(data).status, "unverified");
+  r.rows[3][8] = "0917-123-4567";
+  r.rows[3][1] = "juan";
+  assert.equal(r.lookup(data).status, "unverified");
 });
 
 test("only durably accepted attempt IDs can confirm; retry metadata is bounded", () => {
@@ -76,7 +266,7 @@ test("receipt confirms durable storage, not cache entries or HTTP completion", (
   });
   assert.equal(r.rows.length, 4);
   const receipt = JSON.stringify(r.lookup(data));
-  for (const sensitive of ["09171234567", "Test", "contact", "consent", "fingerprint", "counseling"]) {
+  for (const sensitive of ["09171234567", "0917-123-4567", "Test", "contact", "consent", "fingerprint", "counseling"]) {
     assert.equal(receipt.includes(sensitive), false);
   }
 });
@@ -254,6 +444,8 @@ test("JSONP permits only generated callbacks and UUIDs; errors expose no excepti
     assert.equal(result.mime, "json");
   }
   assert.equal(JSON.parse(r.get({ action: "health" }).body).protocol, "serviceroute-receipt-v1");
+  assert.equal(JSON.parse(r.get({ action: "health" }).body).normalization, "v2");
+  assert.equal(JSON.parse(r.get({ action: "health" }).body).privacy_version, "2026-11-15.1");
   assert.equal(r.sendRaw("{broken").ok, false);
   assert.equal(r.sendRaw("x".repeat(8193)).ok, false);
 });

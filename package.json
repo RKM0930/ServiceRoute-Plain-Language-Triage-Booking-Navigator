@@ -5,7 +5,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check app.js && node --check < Code.gs"
+    "test:browser": "node tests/browser.mjs",
+    "check": "node --check app.js && node --check < Code.gs && node --check tests/browser.mjs"
   },
   "engines": {
     "node": ">=22"

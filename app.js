@@ -11,7 +11,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 (() => {
   const FETCH_TIMEOUT_MS = 20000;
   const RECEIPT_TIMEOUT_MS = 5000;
-  const PRIVACY_VERSION = "2026-11-15";
+  const PRIVACY_VERSION = "2026-11-15.1";
 
   const STEPS = [
     null,
@@ -48,11 +48,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       id: "goal",
       kicker: "Your goal",
       title: "Ano ang pangunahing layunin ng appointment?",
-      helper: "Ito ay para sa administrative na pagtutugma ng serbisyo — hindi ito isang clinical assessment.",
+      helper: "Tutulong ito sa pagpili ng serbisyong itatanong sa clinic. Hindi ito clinical assessment.",
       options: [
         {
           value: "counseling",
-          title: "Usap at Coping sa stress, lungkot, o burnout",
+          title: "Counseling para sa stress, lungkot, o burnout",
           detail: "Suporta sa stress, lungkot, burnout, at coping.",
           short: "Usap / coping",
           icon: "chat"
@@ -67,7 +67,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
         {
           value: "assessment",
           title: "Comprehensive Psychological Assessment / Testing",
-          detail: "Formal testing at komprehensibong written report.",
+          detail: "Magtanong tungkol sa testing at posibleng written report.",
           short: "Assessment",
           icon: "clipboard"
         }
@@ -82,7 +82,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
         {
           value: "online",
           title: "Online Video Call (Zoom / Google Meet)",
-          detail: "Secure na video call mula sa iyong tahanan.",
+          detail: "Video call; kukumpirmahin ng clinic ang platform at mga kailangan.",
           short: "Online",
           icon: "video"
         },
@@ -98,14 +98,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     {
       id: "schedule",
       kicker: "Preferred timing",
-      title: "Kailan ang iyong target na schedule?",
-      helper: "Pumili ng target na panahon. Kokumpirmahin pa rin ng clinical associate ang aktwal na slot.",
+      title: "Kailan mo gustong magpa-appointment?",
+      helper: "Preference pa lamang ito. Kukumpirmahin ng clinic ang available na araw at oras.",
       options: [
         {
           value: "asap",
-          title: "Ngayong linggo na (Urgent / ASAP)",
-          detail: "Priority request — may safety check bago magpatuloy.",
-          short: "Ngayong linggo",
+          title: "Sa lalong madaling panahon",
+          detail: "Walang garantisadong agarang slot o priority. May paalala para sa agarang suporta.",
+          short: "Sa lalong madaling panahon",
           icon: "clock"
         },
         {
@@ -131,7 +131,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       icon: "document",
       title: "Psychological Evaluation for Official Clearance",
       description:
-        "Requires standardized clinical interview and in-person testing battery. Produces a signed clinical document.",
+        "Para sa inquiry tungkol sa psychological evaluation para sa clearance. Kumpirmahin sa clinic ang mga dokumento at testing na kailangan.",
       fee: "₱3,500 – ₱5,000",
       customFee: false
     },
@@ -139,7 +139,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       icon: "clipboard",
       title: "Full Psychological Assessment & Testing Battery",
       description:
-        "Multi-hour formal psychometric battery with written comprehensive psychological report.",
+        "Para sa inquiry tungkol sa psychological assessment at testing. Kumpirmahin sa clinic ang saklaw, tagal, at posibleng written report.",
       fee: "Custom assessment rates",
       customFee: true
     },
@@ -147,7 +147,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       icon: "family",
       title: "Couples / Family Counseling",
       description:
-        "Joint 75-to-90-minute structured facilitation with a licensed relationship counselor.",
+        "Para sa counseling na may kinalaman sa relasyon o pamilya. Kumpirmahin sa clinic ang mga kalahok, format, at tagal ng session.",
       fee: "₱2,000 – ₱2,800",
       customFee: false
     },
@@ -155,7 +155,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       icon: "chat",
       title: "Individual Counseling / Talk Therapy",
       description:
-        "Confidential 50-minute 1-on-1 session focused on coping, stress management, and emotional grounding. Does not issue official legal clearance certificates.",
+        "Para sa individual counseling tungkol sa coping at mga pinagdaraanan. Hindi ito emergency care o awtomatikong clearance.",
       fee: "₱1,200 – ₱1,800",
       customFee: false
     }
@@ -232,6 +232,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     },
     contact: "",
     preferredName: "",
+    nameDefaultApplied: false,
     referral: null,
     scheduleNotes: "",
     consent: false,
@@ -282,16 +283,42 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     return SERVICES.individual;
   }
 
-  function isValidContact(value) {
+  // Keep these pure rules identical to Code.gs; parity is regression-tested.
+  function normalizeContact(value) {
+    if (typeof value !== "string") return null;
     const contact = value.trim();
-    if (!contact) return false;
+    if (!contact || contact.length > 254) return null;
+    if (contact.includes("@")) {
+      const parts = contact.split("@");
+      if (parts.length !== 2) return null;
+      const [local, domain] = parts;
+      if (!local || local.length > 64 || !/^[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+$/u.test(local) ||
+          local.startsWith(".") || local.endsWith(".") || local.includes("..")) return null;
+      const labels = domain.split(".");
+      if (labels.length < 2 || labels.some((label) =>
+        !/^[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u.test(label)) ||
+        labels[labels.length - 1].length < 2 || !/\p{L}/u.test(labels[labels.length - 1])) return null;
+      return local + "@" + domain.toLowerCase();
+    }
+    let digits;
+    if (/^09\d{9}$/.test(contact)) digits = contact;
+    else if (/^(?:\+63|63)9\d{9}$/.test(contact)) digits = "0" + contact.replace(/^\+?63/, "");
+    else if (/^09\d{2}([ -])\d{3}\1\d{4}$/.test(contact)) digits = contact.replace(/[ -]/g, "");
+    else if (/^(?:\+63|63)([ -])9\d{2}\1\d{3}\1\d{4}$/.test(contact)) {
+      digits = "0" + contact.replace(/^\+?63/, "").replace(/[ -]/g, "");
+    } else return null;
+    return digits.slice(0, 4) + "-" + digits.slice(4, 7) + "-" + digits.slice(7);
+  }
 
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-    if (emailPattern.test(contact)) return true;
+  function normalizePreferredName(value, preserveCase = false) {
+    const name = String(value ?? "").trim().replace(/\s+/gu, " ");
+    if (preserveCase || name !== name.toLowerCase()) return name;
+    const formatted = name.replace(/(^|[\s'’\-‐‑])(\p{L})/gu, (_, boundary, letter) => boundary + letter.toUpperCase());
+    return formatted.length <= 80 ? formatted : name;
+  }
 
-    const phoneLike = /^\+?[\d\s().-]+$/.test(contact);
-    const digitCount = contact.replace(/\D/g, "").length;
-    return phoneLike && digitCount >= 7 && digitCount <= 15;
+  function isValidContact(value) {
+    return normalizeContact(value) !== null;
   }
 
   function preferredScrollBehavior() {
@@ -320,22 +347,24 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     dom.progressTrack.setAttribute(
       "aria-valuetext",
       isResult
-        ? "Intake complete, 100 percent"
-        : `Step ${state.step} of 4, ${percent} percent complete`
+        ? "Tapos na ang apat na tanong"
+        : `Hakbang ${state.step} sa 4`
     );
+    const label = document.getElementById("progress-label");
+    if (label) label.textContent = isResult ? "Tapos na ang apat na tanong" : `Hakbang ${state.step} sa 4`;
   }
 
   function buildActionDock() {
     actionDock = document.createElement("nav");
     actionDock.className = "action-dock";
-    actionDock.setAttribute("aria-label", "Intake actions");
+    actionDock.setAttribute("aria-label", "Mga hakbang sa intake");
     actionDock.innerHTML = `
       <div class="action-dock-inner">
-        <button type="button" class="button button-back" id="back-button" aria-label="Go back to the previous step">
-          <span>Back</span>
+        <button type="button" class="button button-back" id="back-button" aria-label="Bumalik sa naunang tanong">
+          <span>Bumalik</span>
         </button>
         <button type="button" class="button button-primary" id="continue-button" disabled>
-          <span id="continue-label">Continue</span>
+          <span id="continue-label">Magpatuloy</span>
         </button>
       </div>
     `;
@@ -359,7 +388,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     const hasAnswer = Boolean(state.answers[step.id]);
     backButton.hidden = state.step === 1;
     continueButton.disabled = !hasAnswer || state.submitting;
-    continueLabel.textContent = state.step === 4 ? "See My Recommendation" : "Continue";
+    continueLabel.textContent = state.step === 4 ? "Tingnan ang mungkahing serbisyo" : "Magpatuloy";
   }
 
   /* ---------- Intake rendering ---------- */
@@ -411,7 +440,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     document.title =
       state.step === 1
         ? "ServiceRoute | Kahilom Psychological Services"
-        : `Step ${state.step} of 4 | ServiceRoute`;
+        : `Hakbang ${state.step} sa 4 | ServiceRoute`;
 
     if (focus) focusElement(document.getElementById("step-title"));
   }
@@ -424,17 +453,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     dom.stepRoot.innerHTML = `
       <section class="result-panel" aria-labelledby="result-heading">
         <article class="service-card">
-          <h2 class="result-title" id="result-heading" tabindex="-1">${escapeHTML(recommendation.title)}</h2>
+          <h2 class="result-title" id="result-heading" tabindex="-1" lang="en">${escapeHTML(recommendation.title)}</h2>
           <p class="result-intro">${escapeHTML(recommendation.description)}</p>
-          <div class="rate-line">Rate: ${escapeHTML(recommendation.fee)}${recommendation.customFee ? "" : " / session"}</div>
-          <p class="service-description" lang="tl">Batay sa iyong mga sagot, heto ang pinakaangkop na administrative service match. Hindi ito clinical diagnosis.</p>
-          <h3>Your preferences</h3>
+          <div class="rate-line">Tinatayang singil: ${escapeHTML(recommendation.fee)}${recommendation.customFee ? "" : " / session"}. Kumpirmahin ang kasalukuyang presyo sa clinic.</div>
+          <p class="service-description">Mungkahing serbisyo batay sa sagot mo, hindi clinical diagnosis.</p>
+          <h3>Mga pinili mo</h3>
           <ul class="preference-summary">
             ${Object.entries(state.answers).map(([key, value]) => `<li>${escapeHTML(getAnswerLabel(key, value))}</li>`).join("")}
           </ul>
-          ${state.answers.goal === "clearance" && state.answers.format === "online" ? '<p class="compatibility-note">This clearance service requires in-person testing. You selected online; please change your preference or ask the clinic to confirm arrangements before booking.</p>' : ""}
-          ${state.answers.goal === "assessment" && state.answers.format === "online" ? '<p class="compatibility-note">Some assessment tests may require an in-person visit. The clinic will confirm which formats are available.</p>' : ""}
-          <button type="button" class="button button-secondary" data-action="edit-answers">Review / Edit Answers</button>
+          ${["clearance", "assessment"].includes(state.answers.goal) && state.answers.format === "online" ? '<p class="compatibility-note">Online ang pinili mo. Kumpirmahin sa clinic kung may testing na kailangang gawin nang personal bago magpa-appointment.</p>' : ""}
+          <button type="button" class="button button-secondary" data-action="edit-answers">Baguhin ang mga sagot</button>
         </article>
 
         <div id="inquiry-mount">
@@ -445,7 +473,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     updateActionDock();
     updateProgress();
-    document.title = "Your Service Match | ServiceRoute";
+    document.title = "Mungkahing Serbisyo | ServiceRoute";
 
     if (scroll) scrollToTop();
     if (focus) focusElement(document.getElementById("result-heading"));
@@ -462,8 +490,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     return `
       <section class="inquiry-card" aria-labelledby="inquiry-title">
-        <h3 class="inquiry-title" id="inquiry-title">Send your inquiry</h3>
-        <p>This is an appointment inquiry, not a confirmed booking. The clinic must confirm availability.</p>
+        <h3 class="inquiry-title" id="inquiry-title">Ipadala ang inquiry</h3>
+        <p>Inquiry pa lamang ito. Hindi pa naka-book ang appointment.</p>
 
         <form id="inquiry-form" novalidate>
           <div class="honeypot" aria-hidden="true">
@@ -479,16 +507,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
               type="text"
               maxlength="80"
               value="${escapeHTML(state.preferredName)}"
-              placeholder="e.g., Kielle"
+              placeholder="Hal. Kielle"
               autocomplete="nickname"
-              spellcheck="true"
+              autocapitalize="words"
+              spellcheck="false"
               aria-describedby="preferred-name-hint"
             >
-            <p class="field-hint" id="preferred-name-hint">Hindi kailangan — maaari kang magpasa nang walang pangalan.</p>
+            <p class="field-hint" id="preferred-name-hint">Puwedeng walang pangalan. Aayusin ang maliliit na titik sa unang pag-alis sa field; maaari mo itong baguhin.</p>
           </div>
 
           <div class="field-group" id="contact-field">
-            <label class="field-label" for="contact-input">Mobile Number o Email Address</label>
+            <label class="field-label" for="contact-input">Philippine mobile number o email address</label>
             <input
               class="contact-input"
               id="contact-input"
@@ -496,7 +525,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
               type="text"
               maxlength="254"
               value="${escapeHTML(state.contact)}"
-              placeholder="0917-XXX-XXXX o email"
+              placeholder="0917-123-4567 o email"
               autocomplete="off"
               autocapitalize="none"
               spellcheck="false"
@@ -504,14 +533,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
               aria-describedby="contact-hint contact-error"
               required
             >
-            <p class="field-hint" id="contact-hint">Gamitin ang numero o email kung saan ka maaaring makontak ng clinic.</p>
+            <p class="field-hint" id="contact-hint">Hal. 0917-123-4567 o +63 917 123 4567. Tinitingnan lang ang format, hindi kung aktibo o pag-aari mo ang numero.</p>
             <p class="field-error" id="contact-error" role="alert" hidden>
-              <span>Pakilagay ang wastong mobile number o email address.</span>
+              <span>Maglagay ng wastong 11-digit Philippine mobile number (hal. 0917-123-4567) o email address.</span>
             </p>
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="schedule-notes-input">May partikular na araw o oras? (Optional)</label>
+            <label class="field-label" for="schedule-notes-input">May gustong araw o oras? (Opsyonal)</label>
             <input
               class="contact-input"
               id="schedule-notes-input"
@@ -519,17 +548,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
               type="text"
               maxlength="300"
               value="${escapeHTML(state.scheduleNotes)}"
-              placeholder="e.g., Nov 6 ng hapon, o tuwing Biyernes after 5 PM"
+              placeholder="Hal. Biyernes pagkalipas ng 5 PM"
               autocomplete="off"
               spellcheck="true"
               aria-describedby="schedule-notes-hint"
             >
-            <p class="field-hint" id="schedule-notes-hint">Scheduling preferences only. Please do not include symptoms, diagnoses, medical history, or other sensitive details.</p>
+            <p class="field-hint" id="schedule-notes-hint">Araw at oras lang. Huwag ilagay ang sintomas, diagnosis, o medical history.</p>
           </div>
 
           <div class="field-group">
             <fieldset class="referral-row" id="referral-row">
-              <legend class="field-label">Saan mo nalaman ang Kahilom? (Optional)</legend>
+              <legend class="field-label">Saan mo nalaman ang Kahilom? (Opsyonal)</legend>
               ${referralOptions
                 .map((option) => {
                   const selected = state.referral === option.value;
@@ -554,7 +583,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
               required
             >
             <span class="consent-copy">
-              I have read the <a href="privacy.html" target="_blank" rel="noopener">privacy notice (opens in a new tab)</a> and consent to Kahilom Psychological Services processing my submitted details for appointment coordination under the Data Privacy Act of 2012 (RA 10173).
+              Nabasa ko ang <a href="privacy.html" target="_blank" rel="noopener">privacy notice (bagong tab)</a> at pumapayag akong gamitin ng Kahilom Psychological Services ang mga detalye ko para sa pag-aayos ng appointment, alinsunod sa Data Privacy Act of 2012 (RA 10173).
             </span>
           </label>
 
@@ -564,7 +593,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
             id="submit-inquiry"
             ${state.consent ? "" : "disabled"}
           >
-            Submit Inquiry
+            Ipadala ang inquiry
           </button>
         </form>
       </section>
@@ -627,11 +656,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
   function editAnswers() {
     if (state.submitting) return;
     if (state.payload && !state.submitted &&
-        !window.confirm("Receipt is unconfirmed. Editing will create a new inquiry; the original may already be saved. Continue?")) return;
+        !window.confirm("Maaaring natanggap na ang naunang inquiry. Ang pagbago ng mga sagot ay gagawa ng bagong inquiry. Magpatuloy?")) return;
     state.payload = null;
     state.deliveryMode = null;
     state.receivedAt = null;
     state.phase = "intake";
+    showSubmissionStatus("");
     state.submitted = false;
     state.step = 4;
     scrollToTop();
@@ -644,6 +674,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     state.answers = { client: null, goal: null, format: null, schedule: null };
     state.contact = "";
     state.preferredName = "";
+    state.nameDefaultApplied = false;
     state.referral = null;
     state.scheduleNotes = "";
     state.consent = false;
@@ -655,6 +686,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     state.payload = null;
 
     hideToast();
+    showSubmissionStatus("");
     scrollToTop();
     renderStep("back");
   }
@@ -720,8 +752,14 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     if (button) {
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
-      button.innerHTML = `<span class="spinner" aria-hidden="true"></span><span>Sending inquiry…</span>`;
+      button.innerHTML = `<span class="spinner" aria-hidden="true"></span><span>Ipinapadala at kinukumpirma…</span>`;
     }
+    showSubmissionStatus("Ipinapadala ang inquiry at tinitingnan kung natanggap ito. Sandali lang.");
+  }
+
+  function showSubmissionStatus(message) {
+    const status = document.getElementById("submission-status");
+    if (status) status.textContent = message;
   }
 
   function handleOptionChange(event) {
@@ -760,13 +798,30 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     if (!event.target.matches("#contact-input")) return;
     state.contact = event.target.value;
     if (event.target.getAttribute("aria-invalid") === "true") {
-      setContactError(false);
+      setContactError(!isValidContact(state.contact));
     }
   }
 
   function handlePreferredNameInput(event) {
     if (!event.target.matches("#preferred-name-input")) return;
     state.preferredName = event.target.value;
+  }
+
+  function handleFieldBlur(event) {
+    if (state.payload || state.submitting) return;
+    if (event.target.matches("#preferred-name-input")) {
+      const name = normalizePreferredName(event.target.value, state.nameDefaultApplied);
+      event.target.value = state.preferredName = name;
+      if (name) state.nameDefaultApplied = true;
+    }
+    if (event.target.matches("#contact-input")) {
+      const contact = normalizeContact(event.target.value);
+      if (contact) event.target.value = state.contact = contact;
+      const previouslyInvalid = event.target.getAttribute("aria-invalid") === "true";
+      // A new blur error can move the submit button during pointer-down, swallowing
+      // the first click. Reveal new errors on submit; update existing errors here.
+      if (previouslyInvalid || contact) setContactError(!contact);
+    }
   }
 
   function handleScheduleNotesInput(event) {
@@ -783,11 +838,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     const checkbox = document.getElementById("consent-checkbox");
     if (!input || !checkbox) return;
 
-    const contact = input.value.trim();
-    state.contact = contact;
+    const contact = state.payload ? state.payload.contact : normalizeContact(input.value);
+    state.contact = contact || input.value;
     state.consent = checkbox.checked;
 
-    if (!isValidContact(contact)) {
+    if (!contact) {
       setContactError(true);
       window.requestAnimationFrame(() => input.focus());
       return;
@@ -799,12 +854,16 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     }
 
     setContactError(false);
+    input.value = contact;
+    const nameInput = document.getElementById("preferred-name-input");
+    if (!state.payload && nameInput) handleFieldBlur({ target: nameInput });
     const recommendation = getRecommendation();
     const payload = state.payload || {
       inquiry_id: crypto.randomUUID(),
       // Retained for compatibility with the original receiver.
       timestamp: new Date().toISOString(),
       preferred_name: state.preferredName.trim() || "Anonymous",
+      name_case: "preserve",
       client_type: state.answers.client,
       goal: state.answers.goal,
       format: state.answers.format,
@@ -817,7 +876,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       privacy_version: PRIVACY_VERSION,
       website: document.getElementById("website-input")?.value || ""
     };
-    state.payload = payload;
+    state.payload = Object.freeze(payload);
 
     state.submitting = true;
     setSubmittingState();
@@ -837,6 +896,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     state.payload = payload;
     const editButton = document.querySelector('[data-action="edit-answers"]');
     if (editButton) editButton.disabled = false;
+    showSubmissionStatus(state.submitted ? "Confirmed: natanggap ang inquiry. Hindi pa naka-book ang appointment."
+      : state.deliveryMode === "failed" ? "Failed: hindi tinanggap ng server ang pagtatangkang ito."
+      : "Unverified: hindi makumpirma kung natanggap ang inquiry.");
     renderSuccess();
   }
 
@@ -908,18 +970,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
   function deliveryNoteMarkup() {
     if (state.deliveryMode === "failed") {
-      return '<p class="delivery-note"><strong>Failed:</strong> the server rejected this attempt. Check your details or try again later using the same inquiry ID. No appointment has been booked.</p>';
+      return '<p class="delivery-note"><strong lang="en">Failed:</strong> hindi tinanggap ng server ang pagtatangkang ito. Suriin ang mga detalye o subukan muli mamaya gamit ang parehong inquiry. Hindi pa naka-book ang appointment.</p>';
     }
     if (state.deliveryMode !== "confirmed") {
       return `
         <p class="delivery-note">
           ${icon("wifiOff")}
-          <span><strong>Unverified:</strong> we could not verify storage. Your inquiry may still have reached the clinic. Copy your details or retry using the same inquiry ID to avoid duplicate rows with the updated receiver. Do not rely on this inquiry for urgent support.</span>
+          <span><strong lang="en">Unverified:</strong> hindi makumpirma kung na-save ang inquiry. Maaaring natanggap na ito. Kopyahin ang detalye o subukan muli ang parehong inquiry. Huwag umasa rito para sa agarang suporta.</span>
         </p>
       `;
     }
 
-    return '<p class="delivery-note"><strong>Confirmed:</strong> the clinic’s server verified your inquiry in its intake ledger. This confirms receipt only, not an appointment. Please wait for the clinic to confirm availability.</p>';
+    return '<p class="delivery-note"><strong lang="en">Confirmed:</strong> natiyak ng server na naka-save ang inquiry. Pagtanggap lang ito ng inquiry, hindi kumpirmasyon ng appointment. Hintayin ang clinic na magkumpirma ng available na schedule.</p>';
   }
 
   function renderSuccess() {
@@ -928,17 +990,17 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     mount.innerHTML = `
       <section class="success-card" aria-labelledby="success-title">
-        <h2 class="success-title" id="success-title" tabindex="-1">${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"}</h2>
-        <p class="success-message">${state.submitted ? "Thank you. Your inquiry was saved for appointment coordination." : "No follow-up is guaranteed until the clinic confirms receipt."}</p>
+        <h2 class="success-title" id="success-title" tabindex="-1" lang="en">${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"}</h2>
+        <p class="success-message">${state.submitted ? "Salamat. Natanggap ang inquiry mo para sa pag-aayos ng appointment." : "Walang garantisadong follow-up hangga’t hindi kinukumpirma ng clinic ang pagtanggap."}</p>
         <p>Inquiry ID: <strong>${escapeHTML(state.payload.inquiry_id)}</strong></p>
         ${deliveryNoteMarkup()}
         <div class="success-actions">
-          ${!state.submitted ? '<button type="button" class="button button-primary" data-action="retry-inquiry">Retry Same Inquiry</button>' : ""}
+          ${!state.submitted ? '<button type="button" class="button button-primary" data-action="retry-inquiry">Ipadala muli ang parehong inquiry</button>' : ""}
           <button type="button" class="button button-secondary" data-action="copy-inquiry">
-            Copy Inquiry Details
+            Kopyahin ang detalye
           </button>
           <button type="button" class="button success-start" data-action="start-over">
-            Start Over
+            Magsimula ulit
           </button>
         </div>
       </section>
@@ -971,23 +1033,23 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     }
 
     return [
-      "ServiceRoute — Inquiry Details",
+      "ServiceRoute — Detalye ng inquiry",
       `Inquiry ID: ${payload.inquiry_id}`,
-      `Delivery: ${state.deliveryMode || "unverified"}`,
-      `Prepared (browser time, Asia/Manila): ${submittedAt}`,
-      `Server received at: ${state.receivedAt || "Not verified"}`,
+      `Katayuan: ${state.deliveryMode || "unverified"}`,
+      `Inihanda (oras ng browser, Asia/Manila): ${submittedAt}`,
+      `Natanggap ng server: ${state.receivedAt || "Hindi pa beripikado"}`,
       "",
-      `Preferred name: ${payload.preferred_name || "Anonymous"}`,
-      `Client: ${getAnswerLabel("client", payload.client_type)}`,
-      `Goal: ${getAnswerLabel("goal", payload.goal)}`,
+      `Pangalan: ${payload.preferred_name || "Anonymous"}`,
+      `Para kanino: ${getAnswerLabel("client", payload.client_type)}`,
+      `Layunin: ${getAnswerLabel("goal", payload.goal)}`,
       `Format: ${getAnswerLabel("format", payload.format)}`,
-      `Schedule: ${getAnswerLabel("schedule", payload.schedule)}`,
-      `Schedule notes: ${payload.schedule_notes || "None specified"}`,
-      `Recommended service: ${payload.recommended_service}`,
+      `Gustong schedule: ${getAnswerLabel("schedule", payload.schedule)}`,
+      `Dagdag na araw o oras: ${payload.schedule_notes || "Walang tinukoy"}`,
+      `Mungkahing serbisyo: ${payload.recommended_service}`,
       `Contact: ${payload.contact}`,
       `Referral: ${payload.referral || "Direct / Unspecified"}`,
       "",
-      `Consent: ${payload.consent}; privacy notice version: ${payload.privacy_version}`
+      `Pahintulot: ${payload.consent}; bersiyon ng privacy notice: ${payload.privacy_version}`
     ].join("\n");
   }
 
@@ -1027,11 +1089,11 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     if (!copied) copied = fallbackCopy(summary);
     if (!copied) {
-      window.prompt("Copy your inquiry details:", summary);
+      window.prompt("Kopyahin ang detalye ng inquiry:", summary);
       return;
     }
 
-    showToast("Inquiry details copied to your clipboard.");
+    showToast("Nakopya ang detalye ng inquiry sa clipboard.");
   }
 
   function showToast(message) {
@@ -1079,6 +1141,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     dom.stepRoot.addEventListener("input", handleContactInput);
     dom.stepRoot.addEventListener("input", handlePreferredNameInput);
     dom.stepRoot.addEventListener("input", handleScheduleNotesInput);
+    dom.stepRoot.addEventListener("blur", handleFieldBlur, true);
     dom.stepRoot.addEventListener("submit", handleInquirySubmit);
 
     dom.stepRoot.addEventListener("click", (event) => {

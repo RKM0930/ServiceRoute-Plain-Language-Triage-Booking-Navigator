@@ -2,12 +2,13 @@
 
 ## Observed state
 
-- Repository baseline: `43092eb`; fetched remote matched that baseline before edits.
+- Repository baseline: `8f45838`; fetched remote matched that baseline before edits.
 - Browser endpoint (unchanged):
   `https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3WHiyhpQW_8LxbEAsMnNwgUQIXw6le92YVlCXis6dZMGUjY8tjg/exec`
-- A read-only GET to that URL with `?action=health` returned Google's HTML error:
-  **“Hindi mahanap ang script function: doGet”** (script function `doGet` not found).
-  This is not a compatible receipt response. An HTTP 200 error page is not success.
+- The current read-only `?action=health` check returns
+  `{"protocol":"serviceroute-receipt-v1","receipt_lookup":true}`.
+  The earlier missing-`doGet` finding is no longer current. This response
+  does not report normalization v2 or establish storage/permission readiness.
 - No Apps Script editor/deployment credentials or `clasp` CLI access are available
   in this workspace. Execute-as identity, “Anyone” access, OAuth authorization,
   spreadsheet permissions, actual headers and historical row contents could not
@@ -43,6 +44,9 @@ were made remotely. Tests use local Apps Script/Sheets mocks.
    and protocol, never names or contacts. It must report `schema_compatible: true`
    and the expected existing submission count. If it fails, inspect header
    spelling/order and permissions; do not delete or rearrange historical data.
+   The 18-column A–R contract is unchanged. Do not recalculate Q, reformat old
+   contacts/names, or backfill N–P. New fingerprints use a `v2:` prefix in Q;
+   the code continues to verify old unprefixed values without rewriting them.
 6. Choose **Deploy → Manage deployments**, select the existing web app deployment,
    **Edit → Version: New version → Deploy**. Verify **Execute as: Me** (an owner
    with ledger access) and **Who has access: Anyone**, including signed-out users.
@@ -51,16 +55,35 @@ were made remotely. Tests use local Apps Script/Sheets mocks.
    The new response must be JSON:
 
    ```json
-   {"protocol":"serviceroute-receipt-v1","receipt_lookup":true}
+   {"protocol":"serviceroute-receipt-v1","receipt_lookup":true,"normalization":"v2","privacy_version":"2026-11-15.1"}
    ```
 
    This verifies the deployed protocol, not a successful write or permissions.
    The editor's saved source or `/dev` URL alone does not verify the `/exec` version.
-8. Publish the updated static `app.js` and `privacy.html` through your existing
-   host and refresh cached assets. No server/framework/hosting migration is needed.
+8. Publish **all four updated browser files**: `index.html`, `style.css`, `app.js`
+   and `privacy.html`, through your existing host, and refresh cached assets.
+   Deploy the receiver first: it accepts both notice versions for rolling
+   compatibility. The old receiver does not accept the new notice version.
+   Re-test old cached clients and new clients in the isolated environment.
+   No server/framework/hosting migration is needed.
    If the host has a CSP, permit script loads from `https://script.google.com` and
    `https://script.googleusercontent.com` and POST connections to those origins.
    Receipt script requests use `no-referrer`; do not add names/contacts to page URLs.
+
+### Staff duplicate-review check
+
+Confirm the owner-reported `Intake View` and its conditional-format rules still
+exist and display repeated contacts without treating them as automatic duplicates.
+Their live formulas/rules are not present in the repository and were not modified.
+Check warning ranges include new rows and privately review differing historical
+formats; never reformat historical Intake cells to make a warning match.
+
+Optionally run/debug `reviewRecentInquiries()` in the owner editor and inspect its
+returned report (candidate row numbers only). Use those row numbers in the
+existing private view/ledger. It does not edit the view or any ledger cell and is
+not exposed by `doGet`. `unreadable_timestamps` identifies records requiring
+manual date review; it does not invent their timezone. The 24-hour window is a
+review heuristic, not a client-identity or deletion policy.
 
 ## End-to-end acceptance without artificial production records
 
@@ -82,6 +105,17 @@ Verify:
    errors → Unverified, never false confirmation.
 6. Receipt JSONP response includes no contact, service choices, fingerprint or secrets.
    There are no writes on GET, including health/receipt/invalid-callback requests.
+7. Invalid mobiles (including mixed separators) are blocked in the browser and by
+   a direct invalid test request. All supported local/+63 formats store the same
+   dashed literal text and share the cooldown. Emails preserve local-part case.
+8. Lowercase, hyphenated, apostrophe and accented names format at the first blur.
+   Manual lowercase/mixed-case corrections remain exactly as edited.
+9. A pre-upgrade fixture using the original raw fingerprint still confirms and
+   retries without rewriting A–Q, including an old formerly accepted phone format.
+   New IDs cannot use the legacy validation exemption.
+10. After cooldown expiry, legitimate shared-number/different-service inquiries
+    insert normally. Optional duplicate review returns row numbers only and never
+    overwrites status/notes, merges records or creates another schema.
 
 Only an owner-authorized **real inquiry** should exercise the production ledger.
 Compare its UUID and server timestamp with the stored row and confirm a
@@ -98,5 +132,8 @@ browser receipt behavior remain **not end-to-end verified**.
 - Review Google and website-host processing, international transfers, quotas and
   technical log retention. This app does not install an automated deletion process.
 - Confirm service rates, response expectations and emergency contact information.
+- Confirm the old session-duration, professional-qualification, testing/document
+  and video-platform claims listed in `UI-AUDIT.md`. The UI no longer guarantees
+  those unverified details, and retains quoted prices only with a confirmation caveat.
 - Do not claim that code validation, consent checkboxes or RA 10173 references
   alone establish legal compliance.

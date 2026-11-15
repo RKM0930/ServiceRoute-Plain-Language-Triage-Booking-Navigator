@@ -29,6 +29,8 @@ export function createReceiver(options = {}) {
   ];
   if (options.unlabeled) rows[1][13] = "existing unlabelled value";
   const cache = new Map();
+  const expiry = new Map();
+  let now = options.now ?? Date.now();
   let locked = false;
   let maxColumns = options.maxColumns || 26;
   let onAppend;
@@ -77,6 +79,10 @@ export function createReceiver(options = {}) {
     }
   };
   const context = vm.createContext({
+    Date: class extends Date {
+      constructor(...args) { super(...(args.length ? args : [now])); }
+      static now() { return now; }
+    },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: (key) => options.properties?.[key] || null
     }) },
@@ -101,7 +107,11 @@ export function createReceiver(options = {}) {
       flush() { if (options.failure === "flush") throw new Error("private flush error"); }
     },
     CacheService: { getScriptCache: () => ({
-      get: (key) => cache.get(key) || null, put: (key, value) => cache.set(key, value)
+      get: (key) => {
+        if (expiry.has(key) && expiry.get(key) <= now) cache.delete(key);
+        return cache.get(key) || null;
+      },
+      put: (key, value, seconds) => { cache.set(key, value); expiry.set(key, now + seconds * 1000); }
     }) },
     Utilities: {
       DigestAlgorithm: { SHA_256: "sha256" },
@@ -124,6 +134,23 @@ export function createReceiver(options = {}) {
       return receipt;
     },
     locked: () => locked, openedId: () => openedId, maxColumns: () => maxColumns,
-    onAppend(fn) { onAppend = fn; }, rawAppend: () => rawAppend
+    onAppend(fn) { onAppend = fn; }, rawAppend: () => rawAppend,
+    now: () => now, advance(ms) { now += ms; },
+    seedLegacy(data) {
+      rows[0].splice(13, 5, "consent", "privacy_version", "consent_recorded_at", "Request fingerprint", "Receipt attempts");
+      const keys = ["inquiry_id", "preferred_name", "client_type", "goal", "format",
+        "schedule", "schedule_notes", "contact", "referral", "consent", "privacy_version"];
+      // Independent copy of 8f45838's original algorithm, not the implementation under test.
+      const hash = createHash("sha256").update(JSON.stringify(keys.map((key) =>
+        key === "contact" ? data[key].trim() : data[key]))).digest("base64url");
+      const received = new Date(now - 1000).toISOString();
+      rows.push([
+        received, data.preferred_name, data.client_type, data.goal, data.format, data.schedule,
+        data.schedule_notes, "Individual Counseling / Talk Therapy", data.contact.trim(), data.referral,
+        "Contacted", "Historical staff note", data.inquiry_id, "true", data.privacy_version,
+        received, hash, JSON.stringify([data.attempt_id])
+      ]);
+      return rows.at(-1);
+    }
   };
 }
