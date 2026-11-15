@@ -18,9 +18,57 @@ npm test
 npm run build
 ```
 
-The optional build copies the four browser assets to `public/`. It does not
-deploy Apps Script. Publish only `index.html`, `style.css`, `app.js`, and
+The optional build copies the five browser assets to `public/`. It does not
+deploy Apps Script. Publish `index.html`, `style.css`, `app.js`, `i18n.js`, and
 `privacy.html` through your existing host.
+
+## Philippine timestamp presentation
+
+`Intake!A` and `Intake!P` remain identical, immutable UTC ISO **text**. Applying a
+date-number format to those text cells is not a date conversion, so this release
+does not alter them, their types, receipt times, or fingerprints.
+
+Owner-only `inspectIntakeViewFormatting()` checks the existing view formulas,
+source timestamp types and grid capacity without writing. Then
+`ensureIntakeViewFormatting()` can install one stable, open-ended `MAP` formula
+in the existing timestamp anchor. It parses numeric UTC components, adds UTC+8,
+and uses explicit English month/AM-PM labels, e.g. `15 Nov 2026, 9:48 AM`.
+Blank/invalid values render blank; no locale-sensitive `DATEVALUE` or per-row
+literal number format is used.
+View timestamps are display text; use the authoritative timestamps for sorting
+or chronological calculations rather than sorting these formatted labels.
+
+Only recognized identity views are supported: a whole A–R identity array at A1,
+or matching per-column identity arrays with timestamps at A2. The other columns,
+conditional formats, validations, statuses and authoritative records are untouched.
+Unknown SORT/QUERY/FILTER mappings, errors, unsupported source cell types or
+insufficient grid capacity stop setup without guessing. A rejected formula is
+rolled back. Re-running a successful setup is a no-op; no formatting repair runs
+on POST. New rows/cleared records are handled by the formula within the view's
+normal Google Sheets grid capacity. Grow the view grid if Intake's grid grows.
+
+Actual authenticated production formulas and Google formula evaluation could
+not be inspected here. Follow the preflight and isolated acceptance in
+`DEPLOYMENT.md`; do not overwrite a custom view to force setup.
+
+## Filipino–English interface
+
+Filipino is the default; the compact header selector switches to English without
+reload or form reconstruction. The safety dialog and privacy page have their own
+selectors too. `i18n.js` is a local gettext-style dictionary: Filipino message
+IDs, English translations and display aliases for canonical English service/state
+names. Plain text nodes and presentation attributes are updated in place.
+
+Inputs, selected values, consent, normalization flags, immutable payloads, UUIDs,
+fingerprints and in-flight submissions are never translated or regenerated.
+Language-button blur also leaves unfinished raw inputs untouched. Copy summaries,
+titles, errors, progress, accessibility/live text and privacy content follow the
+chosen language. Model service names and enums stay canonical on the wire.
+
+Language lives only in page memory; `?lang=en` / `?lang=fil` carries just that
+non-sensitive choice into privacy/back links. No local storage, translation API,
+language payload field or new dependency is used. Privacy version remains
+`2026-11-15.1`: these are translations/presentation changes, not a new policy.
 
 ### Optional browser regression suite
 
@@ -207,9 +255,9 @@ still have identical preferences and shared contacts.
 ## Deployment and owner requirements
 
 See **[DEPLOYMENT.md](DEPLOYMENT.md)** for exact same-URL deployment steps and the
-read-only diagnostics. A read-only health check now reports receipt protocol v1,
-but not the new normalization capability. This release still needs an owner-
-authorized same-URL deployment. Health alone proves neither storage nor permissions.
+read-only diagnostics. The owner reports receipt protocol v1 and normalization v2
+are deployed. This release still needs owner-authorized view setup and a same-URL
+backend update. Health alone proves neither storage nor permissions.
 No production ledger test records were inserted.
 
 `privacy.html` still requires the owner's verified privacy contact, approved

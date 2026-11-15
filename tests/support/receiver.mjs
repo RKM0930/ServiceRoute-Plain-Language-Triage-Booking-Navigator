@@ -37,6 +37,7 @@ export function createReceiver(options = {}) {
   let rawAppend;
   let openedId;
   const sheet = {
+    getMaxRows: () => options.maxRows || 1000,
     getLastRow: () => rows.length,
     getLastColumn: () => Math.max(...rows.map((row) => row.length)),
     getMaxColumns: () => maxColumns,

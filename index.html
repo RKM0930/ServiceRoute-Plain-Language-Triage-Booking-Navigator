@@ -34,6 +34,10 @@
         Kahilom
         <span style="color:#6B726E; font-weight:400;">&middot; ServiceRoute</span>
       </h1>
+      <div class="language-selector" role="group" aria-label="Wika" hidden>
+        <button type="button" data-language="fil" lang="fil" aria-pressed="true">Filipino</button>
+        <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+      </div>
     </header>
 
     <main id="app-main" class="app-main" tabindex="-1">
@@ -85,6 +89,10 @@
       </button>
     </div>
     <p class="modal-kicker">Paalala para sa agarang suporta</p>
+    <div class="language-selector" role="group" aria-label="Wika" hidden>
+      <button type="button" data-language="fil" lang="fil" aria-pressed="true">Filipino</button>
+      <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+    </div>
     <h2 id="crisis-title">Kailangan ng agarang tulong?</h2>
     <p id="crisis-description">Walang garantisadong same-day slot sa Kahilom. Ang inquiry na ito ay hindi emergency service. Kung kailangan mo ng agarang suporta, tumawag sa NCMH Crisis Hotline.</p>
 
@@ -111,6 +119,7 @@
     <p class="modal-footnote">Kung nasa agarang panganib, tumawag sa lokal na emergency services.</p>
   </dialog>
 
+  <script src="i18n.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

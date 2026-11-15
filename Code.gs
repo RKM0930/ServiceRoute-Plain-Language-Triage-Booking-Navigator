@@ -351,3 +351,121 @@ function reviewRecentInquiries(nowMs = Date.now()) {
   };
   return result;
 }
+
+/** Presentation only. Never use this string in the ledger or public receipts. */
+function formatManilaTimestamp(iso) {
+  if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(iso)) return "";
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 19) !== iso.slice(0, 19)) return "";
+  const local = new Date(parsed.getTime() + 8 * 60 * 60 * 1000);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const hour = local.getUTCHours();
+  return local.getUTCDate() + " " + months[local.getUTCMonth()] + " " + local.getUTCFullYear() +
+    ", " + (hour % 12 || 12) + ":" + String(local.getUTCMinutes()).padStart(2, "0") + (hour >= 12 ? " PM" : " AM");
+}
+
+function intakeViewTimestampFormula() {
+  // Explicit numeric UTC components, English month names, and UTC+8. No DATEVALUE
+  // or locale-sensitive month parsing; malformed/empty cells render blank.
+  return 'MAP(Intake!A2:A,LAMBDA(raw,IFERROR(IF(raw="","",IF(REGEXMATCH(raw,' +
+    '"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?Z$"),' +
+    'LET(y,VALUE(LEFT(raw,4)),mo,VALUE(MID(raw,6,2)),d,VALUE(MID(raw,9,2)),' +
+    'h,VALUE(MID(raw,12,2)),mi,VALUE(MID(raw,15,2)),s,VALUE(MID(raw,18,2)),' +
+    'utc,DATE(y,mo,d)+TIME(h,mi,s),local,utc+8/24,' +
+    'IF(AND(YEAR(utc)=y,MONTH(utc)=mo,DAY(utc)=d,h<24,mi<60,s<60),' +
+    'DAY(local)&" "&CHOOSE(MONTH(local),"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")&' +
+    '" "&YEAR(local)&", "&IF(MOD(HOUR(local),12)=0,12,MOD(HOUR(local),12))&":"&TEXT(MINUTE(local),"00")&' +
+    '" "&IF(HOUR(local)>=12,"PM","AM"),"")),"")),"")))';
+}
+
+function intakeViewSnapshot() {
+  const source = ledger(false);
+  const view = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Intake View");
+  if (!view || view.getMaxColumns() < 18) throw new Error("Existing Intake View is missing or incompatible");
+  const formulas = view.getRange(1, 1, 2, 18).getFormulas();
+  const normalize = (formula) => formula.replace(/\s+/g, "").replace(/'Intake'/g, "Intake").toUpperCase();
+  const a1 = normalize(formulas[0][0]);
+  if (/^#(?:REF!|VALUE!|ERROR!|N\/A)/.test(view.getRange("A1").getDisplayValue()) ||
+      /^#(?:REF!|VALUE!|ERROR!|N\/A)/.test(view.getRange("A2").getDisplayValue())) {
+    throw new Error("Existing view has a formula/spill error; inspect it before setup");
+  }
+  const managed = '={Intake!A1:R1;HSTACK(' + intakeViewTimestampFormula() + ',Intake!B2:R)}';
+  const identity = ["=ARRAYFORMULA(INTAKE!A:R)", "=ARRAYFORMULA(INTAKE!A1:R)", "=INTAKE!A1:R"];
+  if (formulas[0][0] === managed || identity.includes(a1)) {
+    if (formulas.flat().some((formula, index) => index !== 0 && formula)) throw new Error("Unexpected formulas inside identity view");
+    return { source, view, target: "A1", current: formulas[0][0], desired: managed };
+  }
+  // Column-specific views are supported only when every other column has the
+  // same identity row mapping. Never guess SORT/QUERY/FILTER output ordering.
+  const headers = view.getRange(1, 1, 1, 18).getValues()[0];
+  const expected = [...LEDGER_HEADERS, ...METADATA_HEADERS];
+  if (expected.some((header, index) => headers[index] !== header)) throw new Error("View headers differ");
+  for (let col = 1; col < 18; col++) {
+    const letter = String.fromCharCode(65 + col);
+    if (normalize(formulas[1][col]) !== `=ARRAYFORMULA(INTAKE!${letter}2:${letter})`) {
+      throw new Error("Unsupported view mapping; inspect existing formulas before changing anything");
+    }
+  }
+  const desired = "=" + intakeViewTimestampFormula();
+  if (formulas[1][0] !== desired && normalize(formulas[1][0]) !== "=ARRAYFORMULA(INTAKE!A2:A)") {
+    throw new Error("Unsupported timestamp formula; no changes made");
+  }
+  return { source, view, target: "A2", current: formulas[1][0], desired };
+}
+
+/** Owner-only read-only preflight. Inspect returned formulas privately; no cell data logged. */
+function inspectIntakeViewFormatting() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) throw new Error("Ledger busy; retry later");
+  try {
+    const snapshot = intakeViewSnapshot();
+    return {
+      timestamp_storage: "ISO literal text; A/P unchanged",
+      timestamp_types: intakeTimestampTypes(snapshot.source),
+      target: snapshot.target, current_formula: snapshot.current,
+      proposed_formula: snapshot.desired,
+      capacity_ready: snapshot.view.getMaxRows() >= snapshot.source.getMaxRows()
+    };
+  } finally { lock.releaseLock(); }
+}
+
+function intakeTimestampTypes(source) {
+  const types = { iso_text: 0, blank: 0, unsupported: 0 };
+  if (source.getLastRow() > 1) {
+    source.getRange(2, 1, source.getLastRow() - 1, 1).getValues().forEach(([value]) => {
+      if (value === "") types.blank++;
+      else if (formatManilaTimestamp(value)) types.iso_text++;
+      else types.unsupported++;
+    });
+  }
+  return types;
+}
+
+/** Run once as owner AFTER inspecting the existing view. Never called by doPost/doGet. */
+function ensureIntakeViewFormatting() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) throw new Error("Ledger busy; retry later");
+  try {
+    const snapshot = intakeViewSnapshot();
+    if (intakeTimestampTypes(snapshot.source).unsupported) {
+      throw new Error("Unsupported historical timestamp cell types; no changes made");
+    }
+    if (snapshot.view.getMaxRows() < snapshot.source.getMaxRows()) {
+      throw new Error("View needs at least as many grid rows as Intake; no changes made");
+    }
+    if (snapshot.current === snapshot.desired) return { changed: false, target: snapshot.target };
+    const target = snapshot.view.getRange(snapshot.target);
+    try {
+      target.setFormula(snapshot.desired);
+      SpreadsheetApp.flush();
+      if (target.getFormula() !== snapshot.desired || /^#/.test(target.getDisplayValue())) {
+        throw new Error("View formula was not accepted");
+      }
+    } catch (_) {
+      target.setFormula(snapshot.current);
+      SpreadsheetApp.flush();
+      throw new Error("Timestamp setup failed; original view formula restored");
+    }
+    return { changed: true, target: snapshot.target };
+  } finally { lock.releaseLock(); }
+}

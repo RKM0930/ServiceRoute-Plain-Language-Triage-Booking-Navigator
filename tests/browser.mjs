@@ -17,7 +17,7 @@ const axeSource = await readFile(process.env.AXE_SCRIPT, "utf8");
 const source = await readFile(resolve(root, "app.js"), "utf8");
 const endpoint = /const SCRIPT_URL = "([^"]+)"/.exec(source)?.[1];
 assert.match(endpoint, /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/);
-const report = { routes: 0, checks: [], widths: [], accessibility: [], errors: [] };
+const report = { routes: 0, checks: [], languages: ["fil", "en"], widths: [], accessibility: [], errors: [] };
 const server = http.createServer(async (request, response) => {
   try {
     const pathname = new URL(request.url, "http://localhost").pathname;
@@ -82,15 +82,28 @@ try {
       }
     }
   }
-  async function flow(client = "adult", goal = "counseling", format = "online", schedule = "flexible", layout = false) {
-    await page.goto(origin);
+  async function language(value, scope = ".app-header") {
+    await page.locator(`${scope} [data-language="${value}"]`).click();
+    assert.equal(await page.locator("html").getAttribute("lang"), value);
+  }
+  async function flow(client = "adult", goal = "counseling", format = "online", schedule = "flexible", layout = false, locale = "fil") {
+    await page.goto(origin + (locale === "en" ? "?lang=en" : ""));
     for (const [name, value] of [["client", client], ["goal", goal], ["format", format]]) {
+      if (locale === "en") {
+        const questions = {
+          client: "Who will use the service?",
+          goal: "What is the main purpose of your appointment?",
+          format: "How would you prefer to attend your session?"
+        };
+        assert.equal(await page.locator("#step-title").textContent(), questions[name]);
+      }
       if (layout) await assertLayout();
       await choose(name, value);
       await page.locator("#continue-button").click();
       await page.waitForFunction(() => document.activeElement.id === "step-title");
     }
     if (layout) await assertLayout();
+    if (locale === "en") assert.equal(await page.locator("#step-title").textContent(), "When would you prefer to schedule your appointment?");
     await choose("schedule", schedule);
     if (schedule === "asap") {
       await page.locator("#crisis-modal").waitFor({ state: "visible" });
@@ -112,7 +125,13 @@ try {
     assert.deepEqual(violations, []);
   }
   async function outcome(heading) {
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    const fil = {
+      "Inquiry Confirmed": "Natanggap ang inquiry",
+      "Submission Failed": "Hindi tinanggap ang inquiry",
+      "Submission Unverified": "Hindi pa beripikado ang inquiry"
+    };
+    const label = await page.locator("html").getAttribute("lang") === "fil" ? fil[heading] : heading;
+    await page.getByRole("heading", { name: label, exact: true }).waitFor();
     await page.waitForFunction(() => document.activeElement.id === "success-title");
   }
   async function screenshot(name, fullPage = true) {
@@ -138,24 +157,49 @@ try {
           const expected = goal === "clearance" ? "Psychological Evaluation for Official Clearance"
             : goal === "assessment" ? "Full Psychological Assessment & Testing Battery"
             : client === "couple_family" ? "Couples / Family Counseling" : "Individual Counseling / Talk Therapy";
+          const filTitles = {
+            "Psychological Evaluation for Official Clearance": "Psychological evaluation para sa opisyal na clearance",
+            "Full Psychological Assessment & Testing Battery": "Komprehensibong psychological assessment at testing",
+            "Couples / Family Counseling": "Counseling para sa mag-asawa o pamilya",
+            "Individual Counseling / Talk Therapy": "Indibidwal na counseling / talk therapy"
+          };
+          assert.equal(await page.locator("#result-heading").textContent(), filTitles[expected]);
+          await language("en");
           assert.equal(await page.locator("#result-heading").textContent(), expected);
+          assert.equal(await page.locator("#inquiry-title").textContent(), "Submit inquiry");
+          assert.match(await page.locator(".result-intro").textContent(), /^For /);
+          assert.doesNotMatch(await page.locator("body").innerText(), /\b(?:Puwedeng|Kumpirmahin|Walang|Ipadala|Paalala)\b/);
+          await language("fil");
           assert.equal(await page.locator("#progress-track").getAttribute("aria-valuenow"), "100");
           assert.equal(await page.locator(".action-dock").isVisible(), false);
           report.routes++;
         }
   await flow();
   await axe("recommendation and complete inquiry form");
+  await language("en");
+  assert.equal(await page.locator(".consent-copy a").getAttribute("href"), "privacy.html?lang=en");
   const popupPromise = context.waitForEvent("page");
   await page.locator(".consent-copy a").click();
   const privacyPopup = await popupPromise;
   await privacyPopup.waitForLoadState();
+  assert.equal(await privacyPopup.getByRole("heading", { name: "ServiceRoute privacy notice" }).isVisible(), true);
+  assert.equal(await privacyPopup.locator("html").getAttribute("lang"), "en");
+  assert.equal(new URL(privacyPopup.url()).search, "?lang=en");
+  await privacyPopup.locator('[data-language="fil"]').click();
   assert.equal(await privacyPopup.getByRole("heading", { name: "Privacy notice ng ServiceRoute" }).isVisible(), true);
   await privacyPopup.close();
   assert.equal(await page.locator("#consent-checkbox").isChecked(), false);
+  await language("fil");
   const nameInput = page.locator("#preferred-name-input");
   const contact = page.locator("#contact-input");
   await nameInput.fill("juan dela cruz");
   assert.equal(await nameInput.inputValue(), "juan dela cruz");
+  const formHandle = await page.locator("#inquiry-form").elementHandle();
+  await language("en");
+  assert.equal(await nameInput.inputValue(), "juan dela cruz", "language blur must not normalize draft values");
+  await language("fil");
+  assert.equal(await formHandle.evaluate((node) => node === document.querySelector("#inquiry-form")), true);
+  await nameInput.focus();
   await contact.focus();
   assert.equal(await nameInput.inputValue(), "Juan Dela Cruz");
   await nameInput.fill("de la cruz");
@@ -174,6 +218,10 @@ try {
     assert.equal(await contact.evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("#contact-error").isVisible(), true);
     assert.equal(posts.length, 0);
+    await language("en");
+    assert.match(await page.locator("#contact-error").textContent(), /Enter a valid 11-digit/);
+    assert.equal(await contact.inputValue(), invalid);
+    await language("fil");
   }
   await contact.fill("still invalid");
   assert.equal(await contact.getAttribute("aria-invalid"), "true");
@@ -201,12 +249,28 @@ try {
   await page.locator("#inquiry-form").evaluate((form) => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   await heldPost;
   assert.equal(posts.length, 1);
+  const submittingForm = await page.locator("#inquiry-form").elementHandle();
+  await language("en");
+  assert.equal(await page.locator("#submit-inquiry").isDisabled(), true);
+  assert.equal(await page.locator("#consent-checkbox").isChecked(), true);
+  assert.equal(await nameInput.inputValue(), "de la cruz");
+  assert.equal(await page.locator("#schedule-notes-input").inputValue(), "Friday afternoon");
+  assert.equal(await submittingForm.evaluate((node) => node === document.querySelector("#inquiry-form")), true);
+  assert.match(await page.locator("#submission-status").textContent(), /Sending your inquiry/);
+  assert.equal(posts.length, 1);
   mode = "success";
   releasePost();
   await outcome("Inquiry Confirmed");
   assert.equal(backend.rows[3][1], "de la cruz");
   assert.equal(backend.rows[3][8], "0917-123-4567");
   assert.equal(backend.rows[3][9], "facebook");
+  assert.equal(posts[0].recommended_service, "Individual Counseling / Talk Therapy");
+  assert.equal("language" in posts[0], false);
+  const persisted = structuredClone(backend.rows[3]);
+  await language("fil");
+  await language("en");
+  assert.deepEqual(backend.rows[3], persisted);
+  assert.equal(posts.length, 1);
   await axe("Confirmed");
   await page.locator('[data-action="copy-inquiry"]').click();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
@@ -252,10 +316,11 @@ try {
     }
   }
   report.checks.push("truthful three-state outcomes, lost POST recovery, lost receipt retry without another row");
+  for (const locale of ["fil", "en"]) {
   for (const width of [320, 375, 480, 768, 1440]) {
     await page.setViewportSize({ width, height: width === 320 ? 568 : 900 });
-    await flow("couple_family", "clearance", "online", "flexible", true);
-    await axe(`result ${width}px`);
+    await flow("couple_family", "clearance", "online", "flexible", true, locale);
+    await axe(`result ${locale} ${width}px`);
     await screenshot(`result-${width}`);
     await page.locator("#contact-input").fill("0917123456");
     await page.locator("#consent-checkbox").check();
@@ -264,16 +329,19 @@ try {
     const errorBox = await page.locator("#contact-error").boundingBox();
     const bannerBox = await page.locator(".emergency-banner").boundingBox();
     assert.ok(errorBox.y >= bannerBox.y + bannerBox.height && errorBox.y + errorBox.height <= (await page.viewportSize()).height);
-    await axe(`validation error ${width}px`);
+    await axe(`validation error ${locale} ${width}px`);
     await screenshot(`error-${width}`, false);
-    await page.goto(origin);
+    await page.goto(origin + (locale === "en" ? "?lang=en" : ""));
     await screenshot(`initial-${width}`);
     for (const [field, value] of [["client", "adult"], ["goal", "counseling"], ["format", "online"]]) {
       await choose(field, value);
       await page.locator("#continue-button").click();
     }
     await choose("schedule", "asap");
-    await axe(`urgent dialog ${width}px`);
+    await language(locale === "en" ? "fil" : "en", "#crisis-modal");
+    assert.equal(await page.locator("#crisis-modal").isVisible(), true);
+    await language(locale, "#crisis-modal");
+    await axe(`urgent dialog ${locale} ${width}px`);
     await page.keyboard.press("Escape");
     await page.waitForFunction(() => !document.querySelector("#crisis-modal").open && !document.body.classList.contains("modal-open"));
     await page.locator("#continue-button").click();
@@ -281,15 +349,18 @@ try {
     await choose("schedule", "weekend");
     await page.locator("#continue-button").click();
     await assertLayout();
-    await page.goto(origin + "/privacy.html");
+    await page.goto(origin + "/privacy.html?lang=" + locale);
     await assertLayout();
-    await axe(`privacy ${width}px`);
-    assert.equal(await page.getByRole("heading", { name: "Privacy notice ng ServiceRoute" }).isVisible(), true);
+    await axe(`privacy ${locale} ${width}px`);
+    if (locale === "en") assert.doesNotMatch(await page.locator("body").innerText(), /\b(?:Kailangan|Walang|Maaaring|Pampubliko|Pahintulot|natiyak)\b/);
+    assert.equal(await page.getByRole("heading", {
+      name: locale === "en" ? "ServiceRoute privacy notice" : "Privacy notice ng ServiceRoute"
+    }).isVisible(), true);
     await screenshot(`privacy-${width}`);
     for (const [scenario, heading] of [
       ["success", "Inquiry Confirmed"], ["offline", "Submission Unverified"], ["reject", "Submission Failed"]
     ]) {
-      await flow();
+      await flow("adult", "counseling", "online", "flexible", false, locale);
       backend.cache.clear();
       mode = scenario;
       await page.locator("#contact-input").fill(`viewport-${width}-${scenario}@example.invalid`);
@@ -297,9 +368,10 @@ try {
       await page.locator("#submit-inquiry").click();
       await outcome(heading);
       await assertLayout();
-      await axe(`${heading} ${width}px`);
+      await axe(`${heading} ${locale} ${width}px`);
     }
-    report.widths.push(width);
+    if (!report.widths.includes(width)) report.widths.push(width);
+  }
   }
   assert.equal(backend.rows[1][10], "Contacted");
   assert.equal(backend.rows[2][10], "Scheduled");

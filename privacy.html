@@ -8,6 +8,10 @@
 </head>
 <body>
   <main class="privacy-page">
+    <div class="language-selector" role="group" aria-label="Wika" hidden>
+      <button type="button" data-language="fil" lang="fil" aria-pressed="true">Filipino</button>
+      <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+    </div>
     <a href="index.html">Bumalik sa ServiceRoute</a>
     <h1>Privacy notice ng ServiceRoute</h1>
     <p>Bersiyon: 2026-11-15.1 · Na-update noong <time datetime="2026-11-15">15 Nobyembre 2026</time></p>
@@ -25,7 +29,7 @@
     <h2>Pagkumpirma ng pagtanggap</h2>
     <p>Submission ID at attempt ID lang ang ipinapadala sa hiwalay na read-only receipt check. Status, protocol version, submission ID, at server timestamp lang ang ibinabalik. Walang pangalan, contact, service preferences, internal fingerprint, o credentials sa response.</p>
     <p>Pampubliko ang receipt endpoint; maaaring tingnan ang status ng sinumang may parehong IDs. Huwag ipaskil ang mga ID. Maaaring kasama ang mga ID sa technical request logs. Ang retry ay gumagamit ng parehong inquiry ID para maiwasan ang dagdag na row sa updated receiver.</p>
-    <p><span lang="en">Confirmed</span>: natiyak ang naka-save na inquiry. <span lang="en">Unverified</span>: hindi makumpirma ang storage, hindi ibig sabihing nawala ang inquiry. <span lang="en">Failed</span>: hindi tinanggap ng server ang pagtatangkang iyon. Wala sa mga ito ang nagkukumpirma ng appointment. Mawawala ang in-memory retry details kapag umalis o nag-reload ka.</p>
+    <p><span>Confirmed</span>: natiyak ang naka-save na inquiry. <span>Unverified</span>: hindi makumpirma ang storage, hindi ibig sabihing nawala ang inquiry. <span>Failed</span>: hindi tinanggap ng server ang pagtatangkang iyon. Wala sa mga ito ang nagkukumpirma ng appointment. Mawawala ang in-memory retry details kapag umalis o nag-reload ka.</p>
     <h2>Access at retention</h2>
     <p>Para lamang sa awtorisadong clinic staff na nag-aayos ng inquiry at appointment, at sa providers na nagpapatakbo ng serbisyo, ang mga detalye. Huwag gumamit ng contact ng ibang tao nang walang pahintulot. Magulang o awtorisadong guardian ang dapat mag-ayos ng inquiry para sa menor de edad.</p>
     <p>Walang awtomatikong pag-delete ng spreadsheet records. Kailangang aprubahan ng clinic ang retention period, limitahan ang staff access, at ipatupad ang deletion process. Hindi sinasabi ng notice na ito na naipatupad na ang mga iyon.</p>
@@ -36,5 +40,6 @@
     <p>Kailangan pang ilathala rito ang beripikadong privacy contact at aprubadong retention period. Hindi sapat ang pagbanggit sa RA 10173 o consent checkbox para masabing legal na compliant ang app.</p>
     <p>Kailangan ding kumpirmahin ng owner ang staff access controls, deletion ng expired records at exports, provider/log retention, privacy-request process, at guardian authorization. Hindi pa nabeberipika ang mga operasyong ito; hindi iniimbento ng repository ang patakaran ng clinic.</p>
   </main>
+  <script src="i18n.js" defer></script>
 </body>
 </html>

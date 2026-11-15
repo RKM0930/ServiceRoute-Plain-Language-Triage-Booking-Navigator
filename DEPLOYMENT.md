@@ -2,13 +2,15 @@
 
 ## Observed state
 
-- Repository baseline: `8f45838`; fetched remote matched that baseline before edits.
+- Repository baseline: `2e72226`; fetched remote matched that baseline before edits.
 - Browser endpoint (unchanged):
   `https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3WHiyhpQW_8LxbEAsMnNwgUQIXw6le92YVlCXis6dZMGUjY8tjg/exec`
-- The current read-only `?action=health` check returns
-  `{"protocol":"serviceroute-receipt-v1","receipt_lookup":true}`.
-  The earlier missing-`doGet` finding is no longer current. This response
-  does not report normalization v2 or establish storage/permission readiness.
+- The owner reports the normalization-v2 receiver is deployed, advertising
+  receipt protocol v1 and notice version `2026-11-15.1`. Health alone does not
+  establish storage/permission readiness or install the new view presentation.
+- The owner reports existing submissions were cleared, leaving headers, view
+  formulas and validation intact. Do not restore synthetic examples or repopulate
+  production. Use the actual current record count, not an old expected count.
 - No Apps Script editor/deployment credentials or `clasp` CLI access are available
   in this workspace. Execute-as identity, “Anyone” access, OAuth authorization,
   spreadsheet permissions, actual headers and historical row contents could not
@@ -26,7 +28,7 @@ were made remotely. Tests use local Apps Script/Sheets mocks.
    then **Extensions → Apps Script**. Confirm this is the project owning the
    existing deployment above. A different project cannot update that deployment.
 2. Keep an owner-controlled backup/version of the ledger. Do not publish it.
-   Verify `Intake` still contains the two existing submissions and staff statuses.
+   Verify the current records (if any), headers, validations and staff statuses.
 3. Replace the receiver source with the current `Code.gs`. Keep other unrelated
    project files. Remove obsolete duplicate definitions of `doGet`/`doPost` if any.
 4. In **Project Settings → Script Properties**, remove stale `SPREADSHEET_ID` /
@@ -60,15 +62,43 @@ were made remotely. Tests use local Apps Script/Sheets mocks.
 
    This verifies the deployed protocol, not a successful write or permissions.
    The editor's saved source or `/dev` URL alone does not verify the `/exec` version.
-8. Publish **all four updated browser files**: `index.html`, `style.css`, `app.js`
-   and `privacy.html`, through your existing host, and refresh cached assets.
-   Deploy the receiver first: it accepts both notice versions for rolling
-   compatibility. The old receiver does not accept the new notice version.
-   Re-test old cached clients and new clients in the isolated environment.
+8. Publish **all five browser files**: `index.html`, `style.css`, `app.js`,
+   **`i18n.js`**, and `privacy.html`, through your existing host, and refresh cached
+   assets. Keep the existing deployment URL. Publish the translation script along
+   with both pages; it is a local asset, not a server dependency.
+   The notice version and receipt protocol are unchanged. Old clients remain
+   compatible; the new UI can also use the existing normalization-v2 receiver.
+   Prefer backend update first, then frontend, to complete both enhancements.
    No server/framework/hosting migration is needed.
    If the host has a CSP, permit script loads from `https://script.google.com` and
    `https://script.googleusercontent.com` and POST connections to those origins.
    Receipt script requests use `no-referrer`; do not add names/contacts to page URLs.
+
+### One-time timestamp presentation setup (owner only)
+
+1. After saving `Code.gs`, run/debug `inspectIntakeViewFormatting()` privately in
+   the owner editor. Inspect `current_formula`, `proposed_formula`,
+   `timestamp_types` and `capacity_ready`. Also inspect the actual `Intake View`
+   formula bar. This workspace did not have authenticated access to those formulas.
+2. If it recognizes an A1 whole-identity view or an A2 per-column identity view,
+   source cells are ISO text (or blank), and capacity is sufficient, run
+   `ensureIntakeViewFormatting()` **once as owner**. This changes only that view's
+   formula anchor; it does not change Intake or its raw A/P cells.
+3. Re-run setup to verify `changed: false`. Preserve every other formula, validation
+   and conditional-format rule. No trigger or per-row formatting is required.
+4. If preflight reports an unknown mapping (especially a sorted/filtered QUERY),
+   stop. Do not clear the view, edit ledger timestamps, or replace the formula by
+   hand with a guessed identity formula. The actual existing formula is required
+   for a safe targeted adaptation. Formula errors are rolled back automatically.
+5. Test in an isolated workbook: UTC midnight/month/year rollovers, empty ledger,
+   new rows and cleared rows. Source `2026-11-15T01:48:00.000Z` should display
+   `15 Nov 2026, 9:48 AM`; raw A/P and receipt output must remain the ISO string.
+6. Keep the view's grid at least as tall as Intake's grid (normal Sheet capacity
+   management, not per-row timestamp formatting). Open-ended formulas cover future
+   rows within that capacity. No grid or tab is recreated by the setup.
+
+View setup uses the newly saved editor source; it does not itself publish a new
+web app version. Complete the existing-deployment New version step separately.
 
 ### Staff duplicate-review check
 
@@ -116,6 +146,10 @@ Verify:
 10. After cooldown expiry, legitimate shared-number/different-service inquiries
     insert normally. Optional duplicate review returns row numbers only and never
     overwrites status/notes, merges records or creates another schema.
+11. Switch Filipino/English on every step, on invalid inputs, in the safety dialog,
+    during sending, and in all three receipt outcomes. Drafts/consent/selected enums
+    and the inquiry ID must be unchanged. Copy summaries and privacy links must
+    follow the selected language, with no personal information in URLs.
 
 Only an owner-authorized **real inquiry** should exercise the production ledger.
 Compare its UUID and server timestamp with the stored row and confirm a

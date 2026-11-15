@@ -9,6 +9,7 @@
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3WHiyhpQW_8LxbEAsMnNwgUQIXw6le92YVlCXis6dZMGUjY8tjg/exec";
 
 (() => {
+  const ui = globalThis.ServiceRouteI18n || { text: (value) => value, apply() {} };
   const FETCH_TIMEOUT_MS = 20000;
   const RECEIPT_TIMEOUT_MS = 5000;
   const PRIVACY_VERSION = "2026-11-15.1";
@@ -389,6 +390,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     backButton.hidden = state.step === 1;
     continueButton.disabled = !hasAnswer || state.submitting;
     continueLabel.textContent = state.step === 4 ? "Tingnan ang mungkahing serbisyo" : "Magpatuloy";
+    ui.apply(actionDock);
   }
 
   /* ---------- Intake rendering ---------- */
@@ -409,8 +411,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
           required
         >
         <div>
-          <span class="option-title" lang="tl">${escapeHTML(option.title)}</span>
-          <span class="option-detail" lang="tl">${escapeHTML(option.detail)}</span>
+          <span class="option-title">${escapeHTML(option.title)}</span>
+          <span class="option-detail">${escapeHTML(option.detail)}</span>
         </div>
       </label>
     `;
@@ -423,12 +425,12 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     dom.stepRoot.dataset.direction = direction;
     dom.stepRoot.innerHTML = `
       <section class="step-panel" aria-labelledby="step-title">
-        <h2 class="step-title" id="step-title" tabindex="-1" lang="tl">${escapeHTML(step.title)}</h2>
-        <p class="step-helper" id="step-helper" lang="tl">${escapeHTML(step.helper)}</p>
+        <h2 class="step-title" id="step-title" tabindex="-1">${escapeHTML(step.title)}</h2>
+        <p class="step-helper" id="step-helper">${escapeHTML(step.helper)}</p>
 
         <form class="step-form" aria-labelledby="step-title" novalidate>
           <fieldset class="service-options" aria-describedby="step-helper">
-            <legend class="sr-only" lang="tl">${escapeHTML(step.title)} — pumili ng isang sagot</legend>
+            <legend class="sr-only">${escapeHTML(step.title)} — pumili ng isang sagot</legend>
             ${step.options.map((option) => optionMarkup(step, option)).join("")}
           </fieldset>
         </form>
@@ -441,6 +443,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       state.step === 1
         ? "ServiceRoute | Kahilom Psychological Services"
         : `Hakbang ${state.step} sa 4 | ServiceRoute`;
+    ui.apply();
 
     if (focus) focusElement(document.getElementById("step-title"));
   }
@@ -453,7 +456,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     dom.stepRoot.innerHTML = `
       <section class="result-panel" aria-labelledby="result-heading">
         <article class="service-card">
-          <h2 class="result-title" id="result-heading" tabindex="-1" lang="en">${escapeHTML(recommendation.title)}</h2>
+          <h2 class="result-title" id="result-heading" tabindex="-1">${escapeHTML(recommendation.title)}</h2>
           <p class="result-intro">${escapeHTML(recommendation.description)}</p>
           <div class="rate-line">Tinatayang singil: ${escapeHTML(recommendation.fee)}${recommendation.customFee ? "" : " / session"}. Kumpirmahin ang kasalukuyang presyo sa clinic.</div>
           <p class="service-description">Mungkahing serbisyo batay sa sagot mo, hindi clinical diagnosis.</p>
@@ -474,6 +477,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     updateActionDock();
     updateProgress();
     document.title = "Mungkahing Serbisyo | ServiceRoute";
+    ui.apply();
 
     if (scroll) scrollToTop();
     if (focus) focusElement(document.getElementById("result-heading"));
@@ -656,7 +660,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
   function editAnswers() {
     if (state.submitting) return;
     if (state.payload && !state.submitted &&
-        !window.confirm("Maaaring natanggap na ang naunang inquiry. Ang pagbago ng mga sagot ay gagawa ng bagong inquiry. Magpatuloy?")) return;
+        !window.confirm(ui.text("Maaaring natanggap na ang naunang inquiry. Ang pagbago ng mga sagot ay gagawa ng bagong inquiry. Magpatuloy?"))) return;
     state.payload = null;
     state.deliveryMode = null;
     state.receivedAt = null;
@@ -755,11 +759,13 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
       button.innerHTML = `<span class="spinner" aria-hidden="true"></span><span>Ipinapadala at kinukumpirma…</span>`;
     }
     showSubmissionStatus("Ipinapadala ang inquiry at tinitingnan kung natanggap ito. Sandali lang.");
+    ui.apply();
   }
 
   function showSubmissionStatus(message) {
     const status = document.getElementById("submission-status");
     if (status) status.textContent = message;
+    if (status) ui.apply();
   }
 
   function handleOptionChange(event) {
@@ -809,6 +815,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
   function handleFieldBlur(event) {
     if (state.payload || state.submitting) return;
+    if (event.relatedTarget?.closest("[data-language]")) return;
     if (event.target.matches("#preferred-name-input")) {
       const name = normalizePreferredName(event.target.value, state.nameDefaultApplied);
       event.target.value = state.preferredName = name;
@@ -896,9 +903,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     state.payload = payload;
     const editButton = document.querySelector('[data-action="edit-answers"]');
     if (editButton) editButton.disabled = false;
-    showSubmissionStatus(state.submitted ? "Confirmed: natanggap ang inquiry. Hindi pa naka-book ang appointment."
-      : state.deliveryMode === "failed" ? "Failed: hindi tinanggap ng server ang pagtatangkang ito."
-      : "Unverified: hindi makumpirma kung natanggap ang inquiry.");
+    showSubmissionStatus(state.submitted ? "Natanggap ang inquiry. Hindi pa naka-book ang appointment."
+      : state.deliveryMode === "failed" ? "Hindi tinanggap ng server ang pagtatangkang ito."
+      : "Hindi makumpirma kung natanggap ang inquiry.");
     renderSuccess();
   }
 
@@ -970,18 +977,18 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
   function deliveryNoteMarkup() {
     if (state.deliveryMode === "failed") {
-      return '<p class="delivery-note"><strong lang="en">Failed:</strong> hindi tinanggap ng server ang pagtatangkang ito. Suriin ang mga detalye o subukan muli mamaya gamit ang parehong inquiry. Hindi pa naka-book ang appointment.</p>';
+      return '<p class="delivery-note"><strong>Failed:</strong> hindi tinanggap ng server ang pagtatangkang ito. Suriin ang mga detalye o subukan muli mamaya gamit ang parehong inquiry. Hindi pa naka-book ang appointment.</p>';
     }
     if (state.deliveryMode !== "confirmed") {
       return `
         <p class="delivery-note">
           ${icon("wifiOff")}
-          <span><strong lang="en">Unverified:</strong> hindi makumpirma kung na-save ang inquiry. Maaaring natanggap na ito. Kopyahin ang detalye o subukan muli ang parehong inquiry. Huwag umasa rito para sa agarang suporta.</span>
+          <span><strong>Unverified:</strong> hindi makumpirma kung na-save ang inquiry. Maaaring natanggap na ito. Kopyahin ang detalye o subukan muli ang parehong inquiry. Huwag umasa rito para sa agarang suporta.</span>
         </p>
       `;
     }
 
-    return '<p class="delivery-note"><strong lang="en">Confirmed:</strong> natiyak ng server na naka-save ang inquiry. Pagtanggap lang ito ng inquiry, hindi kumpirmasyon ng appointment. Hintayin ang clinic na magkumpirma ng available na schedule.</p>';
+    return '<p class="delivery-note"><strong>Confirmed:</strong> natiyak ng server na naka-save ang inquiry. Pagtanggap lang ito ng inquiry, hindi kumpirmasyon ng appointment. Hintayin ang clinic na magkumpirma ng available na schedule.</p>';
   }
 
   function renderSuccess() {
@@ -990,7 +997,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     mount.innerHTML = `
       <section class="success-card" aria-labelledby="success-title">
-        <h2 class="success-title" id="success-title" tabindex="-1" lang="en">${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"}</h2>
+        <h2 class="success-title" id="success-title" tabindex="-1">${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"}</h2>
         <p class="success-message">${state.submitted ? "Salamat. Natanggap ang inquiry mo para sa pag-aayos ng appointment." : "Walang garantisadong follow-up hangga’t hindi kinukumpirma ng clinic ang pagtanggap."}</p>
         <p>Inquiry ID: <strong>${escapeHTML(state.payload.inquiry_id)}</strong></p>
         ${deliveryNoteMarkup()}
@@ -1008,6 +1015,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     document.title = `${state.submitted ? "Inquiry Confirmed" : state.deliveryMode === "failed" ? "Submission Failed" : "Submission Unverified"} | ServiceRoute`;
     updateActionDock();
+    ui.apply();
 
     const successTitle = document.getElementById("success-title");
     const successCard = successTitle?.closest(".success-card");
@@ -1033,23 +1041,23 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     }
 
     return [
-      "ServiceRoute — Detalye ng inquiry",
+      ui.text("ServiceRoute — Detalye ng inquiry"),
       `Inquiry ID: ${payload.inquiry_id}`,
-      `Katayuan: ${state.deliveryMode || "unverified"}`,
-      `Inihanda (oras ng browser, Asia/Manila): ${submittedAt}`,
-      `Natanggap ng server: ${state.receivedAt || "Hindi pa beripikado"}`,
+      `${ui.text("Katayuan")}: ${state.deliveryMode || "unverified"}`,
+      `${ui.text("Inihanda (oras ng browser, Asia/Manila)")}: ${submittedAt}`,
+      `${ui.text("Natanggap ng server")}: ${state.receivedAt || ui.text("Hindi pa beripikado")}`,
       "",
-      `Pangalan: ${payload.preferred_name || "Anonymous"}`,
-      `Para kanino: ${getAnswerLabel("client", payload.client_type)}`,
-      `Layunin: ${getAnswerLabel("goal", payload.goal)}`,
-      `Format: ${getAnswerLabel("format", payload.format)}`,
-      `Gustong schedule: ${getAnswerLabel("schedule", payload.schedule)}`,
-      `Dagdag na araw o oras: ${payload.schedule_notes || "Walang tinukoy"}`,
-      `Mungkahing serbisyo: ${payload.recommended_service}`,
+      `${ui.text("Pangalan")}: ${payload.preferred_name || "Anonymous"}`,
+      `${ui.text("Para kanino")}: ${ui.text(getAnswerLabel("client", payload.client_type))}`,
+      `${ui.text("Layunin")}: ${ui.text(getAnswerLabel("goal", payload.goal))}`,
+      `Format: ${ui.text(getAnswerLabel("format", payload.format))}`,
+      `${ui.text("Gustong schedule")}: ${ui.text(getAnswerLabel("schedule", payload.schedule))}`,
+      `${ui.text("Dagdag na araw o oras")}: ${payload.schedule_notes || ui.text("Walang tinukoy")}`,
+      `${ui.text("Mungkahing serbisyo")}: ${ui.text(payload.recommended_service)}`,
       `Contact: ${payload.contact}`,
       `Referral: ${payload.referral || "Direct / Unspecified"}`,
       "",
-      `Pahintulot: ${payload.consent}; bersiyon ng privacy notice: ${payload.privacy_version}`
+      `${ui.text("Pahintulot")}: ${payload.consent}; ${ui.text("bersiyon ng privacy notice")}: ${payload.privacy_version}`
     ].join("\n");
   }
 
@@ -1089,7 +1097,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     if (!copied) copied = fallbackCopy(summary);
     if (!copied) {
-      window.prompt("Kopyahin ang detalye ng inquiry:", summary);
+      window.prompt(ui.text("Kopyahin ang detalye ng inquiry:"), summary);
       return;
     }
 
@@ -1102,6 +1110,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
     window.clearTimeout(toastTimer);
     window.clearTimeout(toastCleanupTimer);
     dom.toast.textContent = message;
+    ui.apply();
     dom.toast.hidden = false;
     window.requestAnimationFrame(() => {
       dom.toast.classList.add("is-visible");
