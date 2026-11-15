@@ -10,6 +10,7 @@
     "Magpatuloy sa demonstrasyon": "Continue exploring",
     "Mga halimbawang pagpili para sa pag-aaral lamang. Huwag gumamit ng tunay na personal na detalye.": "Example choices for learning only. Do not use real personal details.",
     "Walang garantisadong same-day slot sa Kahilom. Ang demonstrasyong ito ay hindi emergency service. Kung kailangan mo ng agarang suporta, tumawag sa NCMH Crisis Hotline.": "Kahilom cannot guarantee a same-day slot. This demonstration is not an emergency service. For immediate support, call the NCMH Crisis Hotline.",
+    "Mga detalye ng inquiry": "Inquiry details",
     "Natanggap ang inquiry": "Inquiry Confirmed",
     "Hindi tinanggap ang inquiry": "Submission Failed",
     "Hindi pa beripikado ang inquiry": "Submission Unverified",

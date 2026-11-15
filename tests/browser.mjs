@@ -79,6 +79,12 @@ try {
   }
   async function assertLayout() {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    for (const control of await page.locator(".button, .language-selector button, .option-card").all()) {
+      if (!(await control.isVisible())) continue;
+      const box = await control.boundingBox();
+      assert.ok(box && box.height >= 44 && box.width >= 44, "compact controls retain 44px touch targets");
+      assert.ok(box.x >= 0 && box.x + box.width <= (await page.viewportSize()).width + 1, "buttons fit viewport");
+    }
     for (const selector of [".step-panel", ".service-card", ".inquiry-card", ".success-card"]) {
       for (const element of await page.locator(selector).all()) {
         const box = await element.boundingBox();
@@ -170,7 +176,7 @@ try {
           assert.equal(await page.locator("#result-heading").textContent(), filTitles[expected]);
           await language("en");
           assert.equal(await page.locator("#result-heading").textContent(), expected);
-          assert.equal(await page.locator("#inquiry-title").textContent(), "Submit inquiry");
+          assert.equal(await page.locator("#inquiry-title").textContent(), "Inquiry details");
           assert.match(await page.locator(".result-intro").textContent(), /^For /);
           assert.doesNotMatch(await page.locator("body").innerText(), /\b(?:Puwedeng|Kumpirmahin|Walang|Ipadala|Paalala)\b/);
           await language("fil");

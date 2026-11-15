@@ -494,7 +494,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCx0FCf-1i4HyBMHZ3W
 
     return `
       <section class="inquiry-card" aria-labelledby="inquiry-title">
-        <h3 class="inquiry-title" id="inquiry-title">Ipadala ang inquiry</h3>
+        <h3 class="inquiry-title" id="inquiry-title">Mga detalye ng inquiry</h3>
         <p>Inquiry pa lamang ito. Hindi pa naka-book ang appointment.</p>
 
         <form id="inquiry-form" novalidate>
